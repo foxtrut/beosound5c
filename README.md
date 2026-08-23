@@ -4,7 +4,7 @@ A modern recreation of the Bang & Olufsen BeoSound 5 experience using web techno
 
 **Website: [beosound5c.com](https://beosound5c.com)**
 
-This project replaces the original BeoSound 5 software with a circular arc-based touch UI that integrates with Sonos, Bluesound, and Denon HEOS players, music services (Spotify, Apple Music, TIDAL, Plex), and Home Assistant. It works with the original BS5 hardware (rotary encoder, laser pointer, display) and supports BeoRemote One for wireless control.
+This project replaces the original BeoSound 5 software with a circular arc-based touch UI that integrates with Sonos, Bluesound, and Denon HEOS players, music services (Spotify, Apple Music, TIDAL, Plex, Jellyfin), and Home Assistant. It works with the original BS5 hardware (rotary encoder, laser pointer, display) and supports BeoRemote One for wireless control.
 
 ## Quick Start
 
@@ -65,7 +65,7 @@ talks to. Worth knowing before you install one:
 
 - **The local HTTP API has no authentication.** Anything on your LAN can read
   device status and drive playback (`/router/*`, `/player/*`, the source
-  services on ports 8766–8779). That's deliberate — it's how the kiosk, the
+  services on ports 8766–8781). That's deliberate — it's how the kiosk, the
   phone setup page and Home Assistant all talk to it.
 - **Config changes and updates reject cross-site browsers.** `POST /config` and
   `POST /update/run` accept requests from the device's own setup page, Home

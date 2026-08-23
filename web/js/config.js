@@ -34,6 +34,9 @@ const AppConfig = {
     // Plex source
     plexServiceUrl: 'http://localhost:8778',
 
+    // Jellyfin source
+    jellyfinServiceUrl: 'http://localhost:8781',
+
     // USB file source
     usbServiceUrl: 'http://localhost:8773',
 

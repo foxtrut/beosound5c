@@ -11,6 +11,7 @@
     "APPLE MUSIC": "apple_music",
     "TIDAL": "tidal",
     "PLEX": "plex",
+    "JELLYFIN": "jellyfin",
     "NEWS": "news",
     "RADIO": "radio",
     "SCENES": "scenes",

@@ -61,6 +61,7 @@
             { id: 'apple_music', title: 'APPLE MUSIC', preset: 'apple_music', dynamic: true },
             { id: 'tidal', title: 'TIDAL', preset: 'tidal', dynamic: true },
             { id: 'plex', title: 'PLEX', preset: 'plex', dynamic: true },
+            { id: 'jellyfin', title: 'JELLYFIN', preset: 'jellyfin', dynamic: true },
             { id: 'radio', title: 'RADIO', preset: 'radio', dynamic: true },
             { id: 'scenes', title: 'SCENES' },
             { id: 'security', title: 'SECURITY', type: 'webpage',
@@ -154,6 +155,7 @@
         '8776': 'news',
         '8777': 'tidal',
         '8778': 'plex',
+        '8781': 'jellyfin',
         '8779': 'radio',
     };
 
@@ -166,6 +168,7 @@
         apple_music: { '/playlists': 'apple_music_playlists.json' },
         tidal:       { '/playlists': 'tidal_playlists.json' },
         plex:        { '/playlists': 'plex_playlists.json' },
+        jellyfin:    { '/playlists': 'jellyfin_playlists.json' },
         radio:       { '/browse': 'radio_browse.json', '/favourites': 'radio_favourites.json' },
         news:        { '/articles': 'news_articles.json' },
         usb:         { '/browse': 'usb_browse.json' },
@@ -180,6 +183,7 @@
         'apple_music_playlists.json': 'apple_music_playlists.json',
         'tidal_playlists.json': 'tidal_playlists.json',
         'plex_playlists.json': 'plex_playlists.json',
+        'jellyfin_playlists.json': 'jellyfin_playlists.json',
         'digit_playlists.json': 'digit_playlists.json',
         'scenes.json': 'scenes.json',
     };

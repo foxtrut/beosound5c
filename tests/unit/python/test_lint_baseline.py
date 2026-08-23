@@ -60,6 +60,9 @@ CREATE_TASK_BASELINE: dict[str, int] = {
     "sources/spotify/spotify_auth.py": 1,
     "sources/usb/service.py": 2,
     "sources/plex/service.py": 7,
+    # Ported from the Plex source, same task shape (refresh, nightly,
+    # delayed refresh, poll loop) — see sources/jellyfin/service.py.
+    "sources/jellyfin/service.py": 7,
     "sources/tidal/service.py": 5,
     "lib/file_playback/file_player.py": 1,
     "lib/file_playback/remote_player.py": 3,
@@ -89,6 +92,11 @@ SYS_PATH_INSERT_BASELINE: dict[str, int] = {
     "sources/plex/fetch.py": 1,
     "sources/plex/service.py": 2,
     "sources/plex/plex_auth.py": 2,
+    # Same services/ + sibling-directory pattern as the other sources;
+    # fetch.py needs both because it imports jellyfin_api as a sibling.
+    "sources/jellyfin/fetch.py": 2,
+    "sources/jellyfin/service.py": 2,
+    "sources/jellyfin/jellyfin_auth.py": 2,
     "sources/tidal/fetch.py": 1,
     "sources/tidal/service.py": 2,
     "sources/tidal/tidal_auth.py": 1,
