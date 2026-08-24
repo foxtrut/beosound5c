@@ -234,6 +234,22 @@
       "additionalProperties": false
     },
 
+    "jellyfin": {
+      "type": "object",
+      "description": "Jellyfin integration settings. Signing in happens on the source's own setup page (http://<device-ip>:8781/setup) via Quick Connect or username/password; the access token is stored in /etc/beosound5c/jellyfin_tokens.json, never here.",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "Jellyfin server base URL, e.g. http://jellyfin.local:8096. Optional — it pre-fills the setup page, which then stores whatever address you actually signed in against."
+        },
+        "source": {
+          "type": "string",
+          "description": "Beo4/BeoRemote One source button that selects Jellyfin (see docs/remotes.md)."
+        }
+      },
+      "additionalProperties": false
+    },
+
     "news": {
       "type": "object",
       "description": "Guardian News source settings. Required if NEWS is in the menu.",

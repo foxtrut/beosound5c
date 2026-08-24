@@ -61,11 +61,14 @@ _UPDATE_EXCLUDES = [
     'web/json/tidal_digit_playlists.json',
     'web/json/plex_playlists.json',
     'web/json/plex_digit_playlists.json',
+    'web/json/jellyfin_playlists.json',
+    'web/json/jellyfin_digit_playlists.json',
     'web/assets/cd-cache',
     'services/sources/spotify/spotify_tokens.json',
     'services/sources/apple_music/apple_music_tokens.json',
     'services/sources/tidal/tidal_tokens.json',
     'services/sources/plex/plex_tokens.json',
+    'services/sources/jellyfin/jellyfin_tokens.json',
     'services/sources/radio/radio_last_station.json',
     'services/sources/radio/radio_favourites.json',
 ]
@@ -1269,6 +1272,7 @@ _ALLOWED_SERVICES = {
     'beo-player-sonos', 'beo-player-bluesound', 'beo-player-local',
     'beo-source-cd', 'beo-source-spotify', 'beo-source-plex', 'beo-source-radio',
     'beo-source-usb', 'beo-source-news', 'beo-source-tidal', 'beo-source-apple-music',
+    'beo-source-jellyfin',
     'beo-librespot', 'beo-health', 'beo-beo6',
 }
 

@@ -38,6 +38,7 @@ DEFAULT_SOURCE_PORTS = {
     "news": 8776,
     "tidal": 8777,
     "plex": 8778,
+    "jellyfin": 8781,
     "radio": 8779,
     "join": 8766,
 }
