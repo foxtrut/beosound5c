@@ -414,6 +414,60 @@ async def _fetch_latest_release():
         return None
 
 
+def _active_beo_services() -> list:
+    """Names of the beo-* units systemd currently reports active."""
+    res = subprocess.run(
+        ['systemctl', 'list-units', 'beo-*.service', '--state=active',
+         '--no-legend', '--no-pager', '--plain'],
+        capture_output=True, text=True, timeout=5,
+    )
+    # A restart helper unit must never restart itself (it would loop).
+    return [line.split()[0].removesuffix('.service')
+            for line in res.stdout.splitlines()
+            if line.split() and 'update-restart' not in line.split()[0]]
+
+
+def _restart_plan(services) -> list:
+    """Shell steps that restart the given active beo-* services, in an order
+    that survives the caller's own restart. Python twin of
+    services/system/restart-services.sh for the paths that cannot reach it
+    as root: the system panel's restart-all, and the OTA fallback when
+    post-update.sh is missing or fails.
+
+    The helper that runs these steps is spawned by beo-input and therefore
+    lives in beo-input's cgroup — start_new_session does not change that.
+    The moment systemd stops beo-input, the helper dies with it, and
+    `systemctl restart a b c` issues its jobs one unit at a time, so every
+    unit listed after beo-input was silently never restarted (alphabetical
+    order put it third: on a Sonos device the router, player and sources
+    kept running the old code until the next reboot). beo-input therefore
+    goes last, on its own, after beo-ui has been restarted against the
+    fresh backends. Steps are joined with ';' so one failed restart does
+    not skip the rest.
+    """
+    services = [s for s in services if 'update-restart' not in s]
+    backend = [s for s in services if s not in ('beo-ui', 'beo-input')]
+    parts = ['sleep 2']
+    if backend:
+        parts.append(f"sudo systemctl restart {' '.join(backend)}")
+    if 'beo-ui' in services:
+        parts.append('sleep 3')
+        parts.append('sudo systemctl restart beo-ui')
+    if 'beo-input' in services:
+        parts.append('sudo systemctl restart beo-input')
+    return parts
+
+
+def _spawn_restart(parts) -> None:
+    """Run the restart steps detached, so the HTTP reply gets out first."""
+    subprocess.Popen(
+        ['bash', '-c', '; '.join(parts)],
+        start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
 async def _run_update():
     """Download and install the latest release, then restart all beo-* services."""
     global _update_in_progress, _update_step
@@ -491,42 +545,20 @@ async def _run_update():
                 )
                 if result.returncode == 0:
                     logger.info('[update] Post-update done')
+                    restart_scheduled = True
                 else:
                     logger.warning('[update] Post-update failed (non-fatal): %s', result.stderr.strip())
             except Exception as e:
                 logger.warning('[update] Post-update error (non-fatal): %s', e)
 
-        logger.info('[update] Scheduling service restart')
         _update_step = 'restarting'
-
-        # Discover active beo-* services
-        res = await asyncio.get_running_loop().run_in_executor(
-            None,
-            lambda: subprocess.run(
-                ['systemctl', 'list-units', 'beo-*.service', '--state=active',
-                 '--no-legend', '--no-pager', '--plain'],
-                capture_output=True, text=True, timeout=5,
-            ),
-        )
-        services = [
-            line.split()[0].removesuffix('.service')
-            for line in res.stdout.splitlines() if line.split()
-        ]
-        backend = [s for s in services if s != 'beo-ui']
-        has_ui = 'beo-ui' in services
-
-        parts = ['sleep 2']
-        if backend:
-            parts.append(f"sudo systemctl restart {' '.join(backend)}")
-        if has_ui:
-            parts.append('sleep 3 && sudo systemctl restart beo-ui')
-
-        subprocess.Popen(
-            ['bash', '-c', ' && '.join(parts)],
-            start_new_session=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        if restart_scheduled:
+            logger.info('[update] Service restart scheduled by post-update.sh')
+        else:
+            logger.info('[update] Scheduling service restart in-process (post-update.sh unavailable)')
+            services = await asyncio.get_running_loop().run_in_executor(
+                None, _active_beo_services)
+            _spawn_restart(_restart_plan(services))
 
         # _update_in_progress deliberately stays True here: the restart is
         # imminent and this process is about to be killed. But if the
@@ -1407,7 +1439,11 @@ async def restart_service(action: str):
         if action == 'reboot':
             subprocess.Popen(['sudo', 'reboot'])  # fire-and-forget, non-blocking
         elif action == 'restart-all':
-            subprocess.Popen(['sudo', 'systemctl', 'restart', 'beo-masterlink', 'beo-bluetooth', 'beo-router', 'beo-player-sonos', 'beo-source-cd', 'beo-source-spotify', 'beo-input', 'beo-http', 'beo-ui'])
+            # Same ordering rule as the OTA restart: this handler runs inside
+            # beo-input, so beo-input must be the last unit touched.
+            services = await asyncio.get_running_loop().run_in_executor(
+                None, _active_beo_services)
+            _spawn_restart(_restart_plan(services))
         elif action.startswith('restart-'):
             service = 'beo-' + action.replace('restart-', '')
             # CD source: eject disc first, use correct service name
