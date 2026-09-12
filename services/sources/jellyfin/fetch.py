@@ -123,11 +123,15 @@ def main():
         tokens['server_url'], tokens.get('device_id', ''),
         token=tokens['access_token'], user_id=tokens.get('user_id'),
         timeout=30)
+    # public_info() raises on an unreachable server; server_name() swallows
+    # everything and would let a fetch-against-nothing continue and replace
+    # the cached library with an empty file.
     try:
-        log(f"Connected to Jellyfin server: {client.server_name()}")
+        info = client.public_info()
     except Exception as e:
         log(f"ERROR: Could not connect to Jellyfin server: {e}")
         return 1
+    log(f"Connected to Jellyfin server: {info.get('ServerName') or 'Jellyfin'}")
 
     # Load cached data for incremental sync
     cache = {}
@@ -159,20 +163,23 @@ def main():
         except Exception as e:
             log(f"Could not load cache: {e}")
 
+    # A failed library read must abort before the disk writes below — an
+    # empty result from an error is indistinguishable from a genuinely
+    # empty library and would wipe the cached playlists and digit map.
     log("Fetching playlists from Jellyfin server")
     try:
         raw_playlists = client.audio_playlists()
     except Exception as e:
         log(f"ERROR: Could not fetch playlists: {e}")
-        raw_playlists = []
+        return 1
     log(f"Found {len(raw_playlists)} audio playlists")
 
     log("Fetching recent albums")
     try:
         raw_albums = client.recent_albums(RECENT_ALBUM_LIMIT)
     except Exception as e:
-        log(f"Error fetching recent albums: {e}")
-        raw_albums = []
+        log(f"ERROR: Could not fetch recent albums: {e}")
+        return 1
     log(f"Found {len(raw_albums)} recent albums")
 
     all_playlists = []

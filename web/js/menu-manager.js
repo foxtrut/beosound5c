@@ -74,6 +74,7 @@ class MenuManager {
                             </div>
                         </div>
                         <div class="playing-info-slot media-view-info">
+                            <div class="media-view-state"></div>
                             <div id="media-title" class="media-view-title">—</div>
                             <div id="media-artist" class="media-view-artist">—</div>
                             <div id="media-album" class="media-view-album">—</div>

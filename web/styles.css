@@ -144,6 +144,48 @@ html, body {
   transition: all 0.3s ease-in-out;
 }
 
+/* ── Playback state (body classes set by media-manager.js) ──
+   body.playback-paused  : ❚❚ on the state line, artwork dimmed.
+   body.playback-resumed : ▶ flashes once on the not-playing → playing edge;
+                           media-manager removes the class on animationend.
+   The state line always reserves its height so the title never shifts. */
+.media-view-state,
+.immersive-info-state {
+  height: 16px;
+  line-height: 16px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.media-view-state { margin-bottom: 4px; }
+.immersive-info-state { margin-bottom: 6px; }
+
+body.playback-paused .media-view-state::before,
+body.playback-paused .immersive-info-state::before { content: '❚❚'; }
+body.playback-paused .media-view-state,
+body.playback-paused .immersive-info-state { opacity: 0.85; }
+
+body.playback-resumed .media-view-state::before,
+body.playback-resumed .immersive-info-state::before { content: '▶'; }
+body.playback-resumed .media-view-state,
+body.playback-resumed .immersive-info-state {
+  animation: bs5c-resume-flash 1.2s ease-out forwards;
+}
+@keyframes bs5c-resume-flash {
+  0%   { opacity: 0; }
+  15%  { opacity: 0.9; }
+  60%  { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+#now-playing .media-view-artwork img {
+  transition: opacity 0.6s ease-in-out, filter 0.4s ease;
+}
+body.playback-paused #now-playing .media-view-artwork img {
+  filter: brightness(0.55);
+}
+
 .media-view-title,
 .media-view-artist,
 .media-view-album {
@@ -980,6 +1022,41 @@ html, body {
   vertical-align: middle;
   letter-spacing: 0.5px;
 }
+
+/* Current-target row (the room we're driving), pinned at the top */
+.cd-arc-item.join-current .cd-arc-item-name { color: #4da3ff; }
+.join-current-badge {
+  font-size: 0.6rem;
+  letter-spacing: 1px;
+  color: #4da3ff;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+/* Button legend — kept inside x=180–870 so the aluminium wheel can't hide it */
+.speakers-legend {
+  position: absolute;
+  bottom: 22px;
+  left: 190px;
+  right: 160px;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 28px;
+  font-size: 12px;
+  color: #666;
+  pointer-events: none;
+}
+.speakers-legend > span { display: flex; align-items: center; gap: 8px; }
+.speakers-key {
+  background: #1a1a1a;
+  padding: 3px 9px;
+  border-radius: 3px;
+  color: #8a8a8a;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+.speakers-legend-note { color: #c07a3a; }
 
 .join-empty {
   position: absolute;

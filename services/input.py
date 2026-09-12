@@ -92,6 +92,15 @@ power_button_pressed_at = 0.0  # wall time of the current press (long-press dete
 # ML broadcast so link speakers in other rooms power down too).
 POWER_LONGPRESS_ALL_STANDBY = 5.0
 
+# Any physical input on a dark screen wakes the BS5c, exactly like a short
+# power press: backlight on, click, and a touch on the router so the
+# auto-standby idle clock restarts. The waking input itself is swallowed —
+# a wheel turn on a black screen should light it up, not scroll a menu or
+# change a volume you can't see. The laser needs a real movement: the sensor
+# jitters by ±1 position at rest, which must never wake the screen at night.
+LASER_WAKE_DELTA = 3      # positions (arc is 3..123)
+_laser_ref_off = None     # laser position first seen with the screen off
+
 def is_backlight_on():
     """Check backlight state from the hardware state byte."""
     return (state_byte1 & 0x40) != 0
@@ -882,6 +891,121 @@ async def handle_discover_heos(request):
         return web.json_response(devices, headers={'Access-Control-Allow-Origin': '*'})
     except Exception as e:
         logger.warning('HEOS discovery failed: %s', e)
+        return web.json_response([], headers={'Access-Control-Allow-Origin': '*'})
+
+
+async def handle_discover_wiim(request):
+    """GET /discover/wiim — find WiiM/LinkPlay players via SSDP.
+
+    LinkPlay announces as a generic UPnP MediaRenderer (not mDNS), so we
+    M-SEARCH for that, then confirm each responder is LinkPlay by reading
+    getStatusEx (only LinkPlay answers with a uuid + wmrm_version)."""
+    import socket
+
+    ssdp_request = (
+        'M-SEARCH * HTTP/1.1\r\n'
+        'HOST: 239.255.255.250:1900\r\n'
+        'MAN: "ssdp:discover"\r\n'
+        'MX: 2\r\n'
+        'ST: urn:schemas-upnp-org:device:MediaRenderer:1\r\n'
+        '\r\n'
+    ).encode()
+
+    found_ips: list = []
+
+    class _SsdpProtocol(asyncio.DatagramProtocol):
+        def connection_made(self, transport):
+            transport.sendto(ssdp_request, ('239.255.255.250', 1900))
+
+        def datagram_received(self, data, addr):
+            if addr[0] not in found_ips:
+                found_ips.append(addr[0])
+
+    try:
+        loop = asyncio.get_event_loop()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+        sock.bind(('', 0))
+        transport, _ = await loop.create_datagram_endpoint(_SsdpProtocol, sock=sock)
+        try:
+            await asyncio.sleep(3)
+        finally:
+            transport.close()
+
+        devices = []
+        async with ClientSession() as session:
+            for ip in found_ips:
+                for scheme in ('https', 'http'):
+                    try:
+                        url = f'{scheme}://{ip}/httpapi.asp?command=getStatusEx'
+                        async with session.get(
+                            url, ssl=False,
+                            timeout=aiohttp.ClientTimeout(total=3)) as resp:
+                            info = await resp.json(content_type=None)
+                    except Exception:
+                        continue
+                    if isinstance(info, dict) and info.get('uuid'):
+                        devices.append({'ip': ip,
+                                        'name': info.get('ssid')
+                                        or info.get('DeviceName') or ip})
+                    break
+        devices.sort(key=lambda x: x['name'])
+        return web.json_response(devices, headers={'Access-Control-Allow-Origin': '*'})
+    except Exception as e:
+        logger.warning('WiiM discovery failed: %s', e)
+        return web.json_response([], headers={'Access-Control-Allow-Origin': '*'})
+
+
+def _avahi_txt(parts: list) -> dict:
+    """TXT records out of an ``avahi-browse -p`` resolved line
+    (field 9: ``"k=v" "k=v" …``) as a dict."""
+    if len(parts) < 10:
+        return {}
+    out = {}
+    for item in parts[9].split('" "'):
+        item = item.strip().strip('"')
+        if '=' in item:
+            k, v = item.split('=', 1)
+            out[k] = v
+    return out
+
+
+async def handle_discover_bno(request):
+    """GET /discover/mozart and /discover/ase — find Bang & Olufsen network
+    speakers via mDNS. Mozart products advertise ``_bangolufsen._tcp`` (TXT
+    fn=friendly name, sn, tn, in); ASE products ``_beoremote._tcp`` (TXT
+    name, jid, type, productType) — per the B&O app's own discovery code
+    (private/apk/FINDINGS.md §1)."""
+    service = '_beoremote._tcp' if request.path.rstrip('/').endswith('/ase') else '_bangolufsen._tcp'
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            'avahi-browse', '-r', '-t', '-p', service,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+        devices = []
+        seen: set = set()
+        for line in stdout.decode(errors='replace').splitlines():
+            parts = line.split(';')
+            if len(parts) < 9 or parts[0] != '=' or parts[2] != 'IPv4':
+                continue
+            name, addr = parts[3], parts[7]
+            # Prefer the friendly name from TXT (fn= on Mozart, name= on ASE)
+            # over the service instance name.
+            txt = _avahi_txt(parts)
+            name = txt.get('fn') or txt.get('name') or name
+            if addr and addr not in seen:
+                seen.add(addr)
+                devices.append({'name': name, 'ip': addr})
+        devices.sort(key=lambda x: x['name'])
+        return web.json_response(devices, headers={'Access-Control-Allow-Origin': '*'})
+    except asyncio.TimeoutError:
+        return web.json_response([], headers={'Access-Control-Allow-Origin': '*'})
+    except FileNotFoundError:
+        logger.debug('avahi-browse not found — B&O discovery unavailable')
+        return web.json_response([], headers={'Access-Control-Allow-Origin': '*'})
+    except Exception as e:
+        logger.warning('B&O discovery failed: %s', e)
         return web.json_response([], headers={'Access-Control-Allow-Origin': '*'})
 
 
@@ -2052,6 +2176,42 @@ _hid_alive = True   # cleared when scan_loop thread dies
 
 HID_RETRY_INTERVAL = 3  # seconds between device scan retries
 
+def input_wakes(nav_evt, vol_evt, btn_evt, laser_pos):
+    """Return why this HID report should wake a dark screen, or None.
+
+    Pure decision (apart from tracking the laser's resting position while
+    the screen is off) so it can be unit-tested without hardware. The power
+    button is excluded: parse_report already toggled the screen for it.
+    """
+    global _laser_ref_off
+    if is_backlight_on():
+        _laser_ref_off = None
+        return None
+    if nav_evt:
+        return 'nav wheel'
+    if vol_evt:
+        return 'volume wheel'
+    if btn_evt and btn_evt.get('button') != 'power':
+        return f"{btn_evt['button']} button"
+    if laser_pos is not None:
+        if _laser_ref_off is None:
+            _laser_ref_off = laser_pos
+        elif abs(laser_pos - _laser_ref_off) >= LASER_WAKE_DELTA:
+            return 'laser'
+    return None
+
+
+def wake_from_input(reason: str, loop):
+    """Wake the screen the way a short power press does."""
+    logger.info("%s while screen off -> wake", reason)
+    set_backlight(True)
+    do_click()
+    try:
+        asyncio.run_coroutine_threadsafe(_output_power(ROUTER_TOUCH), loop)
+    except Exception:
+        pass
+
+
 def scan_loop(loop):
     global dev, _hid_alive
 
@@ -2088,6 +2248,11 @@ def scan_loop(loop):
                     nav_evt, vol_evt, btn_evt, laser_pos = parse_report(rep, loop)
                     if laser_pos is None:
                         continue
+
+                    wake_reason = input_wakes(nav_evt, vol_evt, btn_evt, laser_pos)
+                    if wake_reason:
+                        wake_from_input(wake_reason, loop)
+                        nav_evt = vol_evt = btn_evt = None
 
                     for evt_type, evt in (
                         ('nav',    nav_evt),
@@ -2161,6 +2326,9 @@ async def main():
     app.router.add_get('/discover/sonos', handle_discover_sonos)
     app.router.add_get('/discover/bluesound', handle_discover_bluesound)
     app.router.add_get('/discover/heos', handle_discover_heos)
+    app.router.add_get('/discover/wiim', handle_discover_wiim)
+    app.router.add_get('/discover/mozart', handle_discover_bno)
+    app.router.add_get('/discover/ase', handle_discover_bno)
     app.router.add_post('/config', handle_config_save)
     app.router.add_options('/config', handle_config_save)
     runner = web.AppRunner(app, access_log=None)

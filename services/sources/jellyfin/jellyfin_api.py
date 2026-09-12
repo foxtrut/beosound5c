@@ -32,7 +32,11 @@ DEVICE_NAME = "BeoSound 5c"
 # take as-is; anything else the server transcodes to MP3 on the fly.
 DIRECT_PLAY_CONTAINERS = "mp3,aac,m4a,flac,wav,ogg"
 TRANSCODE_CONTAINER = "mp3"
-MAX_STREAMING_BITRATE = 320000
+# /universal only direct-plays a file whose bitrate is under this cap, so
+# it has to sit far above lossless rates (WAV is ~1.4 Mbps) or every
+# FLAC/WAV gets transcoded to lossy MP3 despite the Container list.
+# Jellyfin's own clients pass the same value and let the list decide.
+MAX_STREAMING_BITRATE = 140000000
 
 DEFAULT_TIMEOUT = 15
 

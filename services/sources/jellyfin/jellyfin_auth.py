@@ -56,9 +56,17 @@ class JellyfinAuth:
                 log.info("No Jellyfin tokens found - use the setup page to connect")
             return False
 
+        server_url = tokens.get('server_url')
+        if not server_url or not isinstance(server_url, str):
+            # A token with nowhere to spend it — the setup page has to run
+            # again. Returning False keeps the service up in the "not
+            # configured" state instead of killing it at startup.
+            log.warning("Token file has no server_url - waiting for setup")
+            return False
+
         self._device_id = tokens.get('device_id') or load_or_create_device_id()
         client = JellyfinClient(
-            tokens['server_url'], self._device_id,
+            server_url, self._device_id,
             token=tokens['access_token'], user_id=tokens.get('user_id'))
 
         if not client.verify_token():
@@ -66,7 +74,7 @@ class JellyfinAuth:
             # service retries on /resync — don't delete anything.
             log.warning("Could not verify Jellyfin token against %s "
                         "(server down, or the token was revoked)",
-                        tokens['server_url'])
+                        server_url)
             return False
 
         self._client = client

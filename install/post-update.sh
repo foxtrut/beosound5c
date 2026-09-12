@@ -153,7 +153,7 @@ fi
 # /tmp extraction on every killed run, eventually filling the sd-hardening
 # tmpfs and breaking the feature). Switch the fleet to the pip package: runs
 # in place (no /tmp extraction), always current from PyPI. Also install the
-# weekly self-update timer from install/modules/ytdlp.sh. Failure-tolerant —
+# daily self-update timer from install/modules/ytdlp.sh. Failure-tolerant —
 # a PyPI hiccup must not abort the OTA update.
 YTDLP_BIN="/usr/local/bin/yt-dlp"
 # The standalone is >20MB; pip's entry point is a tiny script. Remove the
@@ -195,8 +195,12 @@ if ! command -v deno >/dev/null 2>&1; then
     fi
 fi
 
+# Rewritten when missing, when the service predates the pip install, or when
+# the timer still runs weekly (pre-v0.9.7) — a YouTube breakage that yt-dlp
+# has already fixed shouldn't wait up to a week for the next run.
 if [ ! -f /etc/systemd/system/beo-ytdlp-update.timer ] \
-        || ! grep -q 'pip3 install' /etc/systemd/system/beo-ytdlp-update.service 2>/dev/null; then
+        || ! grep -q 'pip3 install' /etc/systemd/system/beo-ytdlp-update.service 2>/dev/null \
+        || ! grep -q 'OnCalendar=daily' /etc/systemd/system/beo-ytdlp-update.timer 2>/dev/null; then
     cat > /etc/systemd/system/beo-ytdlp-update.service << 'EOF'
 [Unit]
 Description=BeoSound 5c — update yt-dlp (music video)
@@ -209,10 +213,10 @@ ExecStart=/bin/bash -c 'pip3 install -U -q --ignore-installed --break-system-pac
 EOF
     cat > /etc/systemd/system/beo-ytdlp-update.timer << 'EOF'
 [Unit]
-Description=BeoSound 5c — weekly yt-dlp update
+Description=BeoSound 5c — daily yt-dlp update
 
 [Timer]
-OnCalendar=weekly
+OnCalendar=daily
 Persistent=true
 RandomizedDelaySec=1h
 
@@ -221,7 +225,7 @@ WantedBy=timers.target
 EOF
     systemctl daemon-reload
     systemctl enable --now beo-ytdlp-update.timer >/dev/null 2>&1 \
-        && log "yt-dlp weekly update timer installed" \
+        && log "yt-dlp daily update timer installed" \
         || log "could not enable yt-dlp update timer"
 fi
 
