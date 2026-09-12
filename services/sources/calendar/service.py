@@ -234,11 +234,16 @@ class CalendarService(SourceBase):
                 url, timeout=FETCH_TIMEOUT, allow_redirects=True) as resp:
             if resp.status != 200:
                 raise RuntimeError(f"HTTP {resp.status}")
-            body = await resp.content.read(MAX_ICS_BYTES + 1)
-            if len(body) > MAX_ICS_BYTES:
-                raise RuntimeError("response larger than "
-                                   f"{MAX_ICS_BYTES} bytes")
-        return body.decode("utf-8", errors="replace")
+            # StreamReader.read(n) returns whatever has arrived, up to n —
+            # one network chunk, not the whole body. Reading once truncated
+            # real calendars mid-line, or worse, silently at a line boundary.
+            body = bytearray()
+            async for chunk in resp.content.iter_chunked(64 * 1024):
+                body += chunk
+                if len(body) > MAX_ICS_BYTES:
+                    raise RuntimeError("response larger than "
+                                       f"{MAX_ICS_BYTES} bytes")
+        return bytes(body).decode("utf-8", errors="replace")
 
     # ── Agenda shaping ──
 
