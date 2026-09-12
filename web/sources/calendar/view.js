@@ -16,6 +16,45 @@ const _CAL_REFRESH_MS = 10 * 60 * 1000;
 
 let _calTimer = null;
 
+// Weekday and month names come from the browser locale, so the words around
+// them have to as well — otherwise a Danish device reads "TOMORROW · SØNDAG".
+// "Today"/"Tomorrow" come from Intl and cover every locale; the rest has no
+// Intl equivalent and falls back to English outside this table.
+const _CAL_STRINGS = {
+    en: { allDay: 'All day', until: 'until {date}', loading: 'Loading…',
+          unavailable: 'Calendar unavailable — is the calendar source configured and running?',
+          empty: 'Nothing scheduled in the next {n} days.' },
+    da: { allDay: 'Hele dagen', until: 'til {date}', loading: 'Indlæser…',
+          unavailable: 'Kalenderen er ikke tilgængelig — er kalenderkilden sat op, og kører den?',
+          empty: 'Intet planlagt de næste {n} dage.' },
+    sv: { allDay: 'Heldag', until: 'till {date}', loading: 'Laddar…',
+          unavailable: 'Kalendern är inte tillgänglig — är kalenderkällan konfigurerad och igång?',
+          empty: 'Inget inplanerat de närmaste {n} dagarna.' },
+    nb: { allDay: 'Hele dagen', until: 'til {date}', loading: 'Laster…',
+          unavailable: 'Kalenderen er ikke tilgjengelig — er kalenderkilden satt opp, og kjører den?',
+          empty: 'Ingenting planlagt de neste {n} dagene.' },
+    de: { allDay: 'Ganztägig', until: 'bis {date}', loading: 'Wird geladen…',
+          unavailable: 'Kalender nicht verfügbar — ist die Kalenderquelle eingerichtet und aktiv?',
+          empty: 'Nichts geplant in den nächsten {n} Tagen.' },
+};
+
+function _calT(key, vars) {
+    let lang = (navigator.language || 'en').toLowerCase().split('-')[0];
+    if (lang === 'no' || lang === 'nn') lang = 'nb';
+    let text = (_CAL_STRINGS[lang] || _CAL_STRINGS.en)[key];
+    for (const [name, value] of Object.entries(vars || {})) {
+        text = text.replace('{' + name + '}', () => value);
+    }
+    return text;
+}
+
+function _calRelativeDay(offset) {
+    // numeric:'auto' gives the word ("i morgen"), not "om 1 dag".
+    const word = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+        .format(offset, 'day');
+    return word.charAt(0).toLocaleUpperCase() + word.slice(1);
+}
+
 function _calUrl() {
     return (window.AppConfig?.calendarServiceUrl || 'http://localhost:8791') + '/events';
 }
@@ -39,8 +78,7 @@ async function _calFetchAndRender() {
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         _calRender(root, await resp.json());
     } catch (e) {
-        root.innerHTML = '<div class="cal-msg">Calendar unavailable — is the '
-            + 'calendar source configured and running?</div>';
+        root.innerHTML = '<div class="cal-msg">' + _calEscape(_calT('unavailable')) + '</div>';
     }
 }
 
@@ -50,8 +88,8 @@ function _calDayHeading(iso, isToday, isTomorrow) {
     const date = new Date(iso + 'T00:00:00Z');
     const opts = { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' };
     let label = date.toLocaleDateString(undefined, opts);
-    if (isToday) label = 'Today · ' + label;
-    else if (isTomorrow) label = 'Tomorrow · ' + label;
+    if (isToday) label = _calRelativeDay(0) + ' · ' + label;
+    else if (isTomorrow) label = _calRelativeDay(1) + ' · ' + label;
     return label;
 }
 
@@ -67,12 +105,12 @@ function _calEventRow(ev) {
     if (ev.calendar) meta.push(_calEscape(ev.calendar));
 
     const when = ev.all_day
-        ? 'All day'
+        ? _calEscape(_calT('allDay'))
         : _calEscape(ev.time) + (ev.end_time ? '<span class="cal-dash">–</span>'
             + _calEscape(ev.end_time) : '');
 
     const until = ev.until
-        ? `<span class="cal-until">until ${_calEscape(_calUntilLabel(ev.until))}</span>`
+        ? `<span class="cal-until">${_calEscape(_calT('until', { date: _calUntilLabel(ev.until) }))}</span>`
         : '';
 
     return `
@@ -90,8 +128,7 @@ function _calRender(root, data) {
     const days = (data && data.days) || [];
     if (!days.length) {
         const ahead = (data && data.days_ahead) || 14;
-        root.innerHTML = '<div class="cal-msg">Nothing scheduled in the next '
-            + ahead + ' days.</div>';
+        root.innerHTML = '<div class="cal-msg">' + _calEscape(_calT('empty', { n: ahead })) + '</div>';
         return;
     }
 
@@ -162,7 +199,7 @@ window.SourcePresets.calendar = {
                 #calendar-view .cal-msg { color:rgba(255,255,255,0.5); font-size:0.95rem; }
                 #calendar-view .cal-warn { color:#e8b45a; font-size:0.82rem; margin-bottom:14px; }
             </style>
-            <div id="calendar-view"><div class="cal-msg">Loading…</div></div>
+            <div id="calendar-view"><div class="cal-msg">${_calEscape(_calT('loading'))}</div></div>
         `,
     },
 
