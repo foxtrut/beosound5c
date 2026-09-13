@@ -259,6 +259,14 @@
                 { name: 'BeoRemote One', mac: 'AA:BB:CC:DD:EE:FF', connected: true },
             ]));
         }
+        if (path === '/bt/speakers') {
+            return Promise.resolve(jsonResponse([
+                { name: 'Kanto YU4', mac: '00:11:22:33:44:55', paired: false, connected: false },
+            ]));
+        }
+        if (path === '/bt/speakers/pair') {
+            return Promise.resolve(jsonResponse({ status: 'ok', message: 'Paired and connected' }));
+        }
         if (path === '/update/check') {
             return Promise.resolve(jsonResponse({
                 current: 'demo', update_available: false, update_in_progress: false,
