@@ -7,7 +7,11 @@ Forecast EDR API (the HARMONIE DINI model) and serves a "today" summary
 plus an hourly breakdown to the frontend. No API key required.
 
 Config (config.json):
-    "weather": { "latitude": "56.172", "longitude": "10.199" }
+    "weather": { "latitude": "56.172", "longitude": "10.199",
+                 "location_name": "Christiansbjerg, Aarhus" }
+location_name is optional and purely a display label — the coordinates
+are what's actually sent to DMI. Falls back to showing the coordinates
+if left out.
 
 Port: 8790
 """
@@ -66,10 +70,12 @@ class WeatherService(SourceBase):
         self._last_fetch = 0
         self._lat = ""
         self._lon = ""
+        self._location_name = ""
 
     async def on_start(self):
         self._lat = cfg("weather", "latitude", default="")
         self._lon = cfg("weather", "longitude", default="")
+        self._location_name = cfg("weather", "location_name", default="")
         if not self._lat or not self._lon:
             log.info("No weather.latitude/longitude in config — weather source disabled")
             raise SystemExit(0)
@@ -142,6 +148,11 @@ class WeatherService(SourceBase):
     def _build_summary(self, steps):
         now = datetime.now(LOCAL_TZ)
         today = now.date()
+        now_hour = now.replace(minute=0, second=0, microsecond=0)
+        # steps[0] is the oldest point in the model run, which can be hours
+        # in the past relative to "now" — "current" must track the step
+        # whose timestamp is nearest to now instead (whichever side of it).
+        current_step = min(steps, key=lambda s: abs((s["time"] - now).total_seconds()))
 
         hourly = []
         prev_cum = None
@@ -167,7 +178,7 @@ class WeatherService(SourceBase):
                 today_temps.append(s["temp_c"])
             if delta is not None and delta >= RAIN_THRESHOLD_MM:
                 will_rain = True
-            if s["time"] >= now.replace(minute=0, second=0, microsecond=0):
+            if s["time"] >= now_hour:
                 hourly.append({
                     "time": s["time"].strftime("%H:%M"),
                     "temp_c": s["temp_c"],
@@ -179,9 +190,14 @@ class WeatherService(SourceBase):
         if today_start_cum is not None and today_end_cum is not None:
             rain_today_mm = round(max(0.0, today_end_cum - today_start_cum), 1)
 
-        current = steps[0]
+        current = current_step
         return {
             "updated": time.time(),
+            "location": {
+                "name": self._location_name or None,
+                "lat": self._lat,
+                "lon": self._lon,
+            },
             "current": {
                 "temp_c": current["temp_c"],
                 "cloud_pct": current["cloud_pct"],

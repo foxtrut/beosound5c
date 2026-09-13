@@ -300,6 +300,10 @@
         "longitude": {
           "type": "string",
           "description": "Decimal degrees, e.g. '10.199'."
+        },
+        "location_name": {
+          "type": "string",
+          "description": "Optional display label shown on the WEATHER page, e.g. 'Christiansbjerg, Aarhus'. Purely cosmetic — the coordinates above are what's sent to DMI. Falls back to showing the coordinates if left out."
         }
       },
       "additionalProperties": false

@@ -44,7 +44,7 @@
   "spotify": { "client_id": "" },
   "radio": { "source": "radio" },
   "news": { "guardian_api_key": "test" },
-  "weather": { "latitude": "", "longitude": "" },
+  "weather": { "latitude": "", "longitude": "", "location_name": "" },
   "masterlink": {
     "role": "master",
     "ir": { "audio": true, "video": true },
