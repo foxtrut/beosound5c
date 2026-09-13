@@ -43,12 +43,23 @@ COLLECTION = "harmonie_dini_sf"
 PARAMETERS = ["temperature-2m", "total-precipitation",
               "fraction-of-cloud-cover", "wind-speed-10m"]
 REFRESH_INTERVAL = 30 * 60  # 30 minutes — forecast doesn't change fast enough for more
+# After a failed fetch, try again sooner than REFRESH_INTERVAL: DMI answers
+# 429 "Server is busy" for stretches (seen around midnight), and one miss used
+# to leave the WEATHER page empty for half an hour. Resets on the next success.
+RETRY_DELAYS = (60, 2 * 60, 5 * 60, 10 * 60, 20 * 60, REFRESH_INTERVAL)
 RAIN_THRESHOLD_MM = 0.1  # hourly amount considered "it's raining"
 LOCAL_TZ = ZoneInfo("Europe/Copenhagen")
 
 
 def kelvin_to_c(kelvin):
     return round(kelvin - 273.15, 1)
+
+
+def next_delay(failures):
+    """Seconds to wait before the next fetch, after `failures` failed fetches in a row."""
+    if failures <= 0:
+        return REFRESH_INTERVAL
+    return RETRY_DELAYS[min(failures, len(RETRY_DELAYS)) - 1]
 
 
 class WeatherService(SourceBase):
@@ -89,16 +100,24 @@ class WeatherService(SourceBase):
         await self.register("gone")
 
     async def _refresh_loop(self):
+        failures = 0
         while True:
             try:
-                await self._fetch_forecast()
+                ok = await self._fetch_forecast()
             except asyncio.CancelledError:
                 return
             except Exception as e:
-                log.error("Fetch failed: %s", e)
-            await asyncio.sleep(REFRESH_INTERVAL)
+                # A timeout's message is empty — name the type so the log says something.
+                log.error("Fetch failed: %s", str(e) or type(e).__name__)
+                ok = False
+            failures = 0 if ok else failures + 1
+            delay = next_delay(failures)
+            if failures:
+                log.info("Retrying forecast fetch in %d min", delay // 60)
+            await asyncio.sleep(delay)
 
     async def _fetch_forecast(self):
+        """Fetch and summarise the forecast. Returns True if it was updated."""
         log.info("Fetching forecast from DMI Open Data...")
         params = {
             "coords": f"POINT({self._lon} {self._lat})",
@@ -110,17 +129,18 @@ class WeatherService(SourceBase):
         async with self._http_session.get(url, params=params, timeout=20) as resp:
             if resp.status != 200:
                 log.error("DMI API returned %d", resp.status)
-                return
+                return False
             data = await resp.json()
 
         steps = self._parse_steps(data)
         if not steps:
             log.warning("DMI response had no usable forecast steps")
-            return
+            return False
 
         self._forecast = self._build_summary(steps)
         self._last_fetch = time.time()
         log.info("Forecast updated: %d hourly steps", len(steps))
+        return True
 
     def _parse_steps(self, data):
         steps = []
