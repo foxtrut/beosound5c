@@ -289,6 +289,22 @@
       "additionalProperties": false
     },
 
+    "weather": {
+      "type": "object",
+      "description": "Weather source settings (DMI Open Data forecast). No API key required — only a location. If WEATHER is in the menu without coordinates, the source logs a warning and beo-source-weather refuses to start.",
+      "properties": {
+        "latitude": {
+          "type": "string",
+          "description": "Decimal degrees, e.g. '56.172'."
+        },
+        "longitude": {
+          "type": "string",
+          "description": "Decimal degrees, e.g. '10.199'."
+        }
+      },
+      "additionalProperties": false
+    },
+
     "masterlink": {
       "type": "object",
       "description": "B&O Master Link bus role + IR filter. Read by services/masterlink.py at startup.",

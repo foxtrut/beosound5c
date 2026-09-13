@@ -62,6 +62,7 @@
             { id: 'tidal', title: 'TIDAL', preset: 'tidal', dynamic: true },
             { id: 'plex', title: 'PLEX', preset: 'plex', dynamic: true },
             { id: 'jellyfin', title: 'JELLYFIN', preset: 'jellyfin', dynamic: true },
+            { id: 'weather', title: 'WEATHER', preset: 'weather', dynamic: true },
             { id: 'radio', title: 'RADIO', preset: 'radio', dynamic: true },
             { id: 'airplay', title: 'AIRPLAY', preset: 'airplay', dynamic: true },
             { id: 'scenes', title: 'SCENES' },
@@ -154,6 +155,7 @@
         '8773': 'usb',
         '8774': 'apple_music',
         '8776': 'news',
+        '8790': 'weather',
         '8777': 'tidal',
         '8778': 'plex',
         '8781': 'jellyfin',
@@ -173,6 +175,7 @@
         jellyfin:    { '/playlists': 'jellyfin_playlists.json' },
         radio:       { '/browse': 'radio_browse.json', '/favourites': 'radio_favourites.json' },
         news:        { '/articles': 'news_articles.json' },
+        weather:     { '/forecast': 'weather_forecast.json' },
         usb:         { '/browse': 'usb_browse.json' },
         // Idle is the state worth demoing: it is what the AIRPLAY view shows
         // until someone picks the BeoSound on a phone, and it cannot be

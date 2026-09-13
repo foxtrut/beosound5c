@@ -191,6 +191,26 @@ def build() -> dict[str, object]:
         ]},
     ]
 
+    files["weather_forecast.json"] = {
+        "updated": 1_700_000_000,
+        "current": {"temp_c": 14.2, "cloud_pct": 62, "wind_ms": 3.4},
+        "today": {
+            "date": "2024-11-14",
+            "will_rain": True,
+            "rain_mm": 2.3,
+            "temp_min_c": 11.5,
+            "temp_max_c": 15.8,
+        },
+        "hourly": [
+            {"time": "14:00", "temp_c": 14.2, "rain_mm": 0.0, "cloud_pct": 55},
+            {"time": "15:00", "temp_c": 14.6, "rain_mm": 0.0, "cloud_pct": 60},
+            {"time": "16:00", "temp_c": 14.1, "rain_mm": 0.3, "cloud_pct": 78},
+            {"time": "17:00", "temp_c": 13.4, "rain_mm": 1.1, "cloud_pct": 92},
+            {"time": "18:00", "temp_c": 12.8, "rain_mm": 0.9, "cloud_pct": 88},
+            {"time": "19:00", "temp_c": 12.1, "rain_mm": 0.0, "cloud_pct": 70},
+        ],
+    }
+
     # No stick inserted — the empty browse envelope a device would return.
     files["usb_browse.json"] = {"path": "", "parent": None, "name": "USB", "items": []}
 
