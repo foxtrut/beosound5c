@@ -289,6 +289,22 @@
       "additionalProperties": false
     },
 
+    "dr_news": {
+      "type": "object",
+      "description": "DR News source settings (DR's public RSS feeds). No API key required; everything is optional.",
+      "properties": {
+        "feeds": {
+          "type": "array",
+          "description": "DR feed sections to show, in menu order. Defaults to senestenyt, indland, udland, politik, penge, kultur, viden, sporten. An article in several feeds is shown under the first.",
+          "items": {
+            "type": "string",
+            "enum": ["senestenyt", "indland", "udland", "politik", "penge", "kultur", "viden", "sporten", "senestesport", "musik", "regionale", "vejret"]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+
     "masterlink": {
       "type": "object",
       "description": "B&O Master Link bus role + IR filter. Read by services/masterlink.py at startup.",

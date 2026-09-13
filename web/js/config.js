@@ -46,6 +46,9 @@ const AppConfig = {
     // News source (Guardian)
     newsServiceUrl: 'http://localhost:8776',
 
+    // DR News source (DR RSS feeds)
+    drNewsServiceUrl: 'http://localhost:8792',
+
     // Radio source (Radio Browser)
     radioServiceUrl: 'http://localhost:8779',
 

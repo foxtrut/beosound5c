@@ -13,6 +13,7 @@
     "PLEX": "plex",
     "JELLYFIN": "jellyfin",
     "NEWS": "news",
+    "DR NYHEDER": "dr_news",
     "RADIO": "radio",
     "SCENES": "scenes",
     "SYSTEM": "system"
@@ -43,6 +44,7 @@
   "spotify": { "client_id": "" },
   "radio": { "source": "radio" },
   "news": { "guardian_api_key": "test" },
+  "dr_news": { "feeds": ["senestenyt", "indland", "udland", "politik", "penge", "kultur", "viden", "sporten"] },
   "masterlink": {
     "role": "master",
     "ir": { "audio": true, "video": true },

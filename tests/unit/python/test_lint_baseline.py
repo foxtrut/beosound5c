@@ -85,6 +85,7 @@ SYS_PATH_INSERT_BASELINE: dict[str, int] = {
     "sources/news.py": 2,
     "sources/cd.py": 1,
     "sources/apple_music/fetch.py": 1,
+    "sources/dr_news.py": 2,
     "sources/apple_music/service.py": 2,
     "sources/apple_music/apple_music_auth.py": 1,
     "sources/radio/service.py": 1,

@@ -1429,6 +1429,7 @@ _ALLOWED_SERVICES = {
     'beo-source-cd', 'beo-source-spotify', 'beo-source-plex', 'beo-source-radio',
     'beo-source-usb', 'beo-source-news', 'beo-source-tidal', 'beo-source-apple-music',
     'beo-source-jellyfin', 'beo-source-airplay',
+    'beo-source-dr-news',
     'beo-librespot', 'beo-shairport', 'beo-health', 'beo-beo6',
 }
 
