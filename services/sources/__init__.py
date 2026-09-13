@@ -13,5 +13,5 @@ Current sources:
   plex/       — Plex music browsing and playback
   jellyfin/   — Jellyfin music browsing and playback
   news.py     — RSS/TTS news playback via local mpv
-  calendar/   — Google Calendar agenda display (no playback)
+  calendar_source/ — Google Calendar agenda display (no playback)
 """

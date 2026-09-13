@@ -18,7 +18,7 @@ import pytest
 # Imported the way service.py imports it — the source directory goes on
 # sys.path, so the module is top-level `calendar_ics`.
 CALENDAR_DIR = (Path(__file__).resolve().parents[3]
-                / "services" / "sources" / "calendar")
+                / "services" / "sources" / "calendar_source")
 sys.path.insert(0, str(CALENDAR_DIR))
 
 import calendar_ics as ics  # noqa: E402
