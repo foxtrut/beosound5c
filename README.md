@@ -4,7 +4,7 @@ A modern recreation of the Bang & Olufsen BeoSound 5 experience using web techno
 
 **Website: [beosound5c.com](https://beosound5c.com)**
 
-This project replaces the original BeoSound 5 software with a circular arc-based touch UI that integrates with Sonos, Bluesound, and Denon HEOS players (plus experimental WiiM/LinkPlay and B&O Mozart/ASE), music services (Spotify, Apple Music, TIDAL, Plex, Jellyfin), and Home Assistant. It works with the original BS5 hardware (rotary encoder, laser pointer, display) and supports BeoRemote One for wireless control.
+This project replaces the original BeoSound 5 software with a circular arc-based touch UI that integrates with Sonos, Bluesound, and Denon HEOS players (plus experimental WiiM/LinkPlay and B&O Mozart/ASE), music services (Spotify, Apple Music, TIDAL, Plex, Jellyfin, AirPlay 2), and Home Assistant. It works with the original BS5 hardware (rotary encoder, laser pointer, display) and supports BeoRemote One for wireless control.
 
 ## Quick Start
 

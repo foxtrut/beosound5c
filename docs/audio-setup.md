@@ -51,6 +51,7 @@ Sources check the player's capabilities at startup to determine how to play cont
 | **Jellyfin** | Yes — `play_uri` with direct stream URLs | Yes — direct stream URLs | Yes — direct stream URLs | Yes — direct stream URLs | No |
 | **CD** | Yes — plays on Pi via mpv | Yes — plays on Pi via mpv | Yes — plays on Pi via mpv | Yes — plays on Pi via mpv | Yes |
 | **USB** | Yes — streams track URLs to Sonos | Yes — streams track URLs | Yes — streams track URLs | Yes — streams track URLs | Yes — falls back to local mpv |
+| **AirPlay 2** | No | No | No | No | No — needs `player.type: local` |
 
 *WiiM is experimental — the columns reflect the same capability model as BlueSound/HEOS (`url_stream`), unverified on hardware.
 
@@ -61,6 +62,7 @@ Sources check the player's capabilities at startup to determine how to play cont
 - Plex and Jellyfin work with both players because they send direct stream URLs (via `url`), not share links
 - Plex, Jellyfin and TIDAL (on BlueSound) manage their own queues (next/prev build new stream URLs) while Spotify and Apple Music let the player handle queue advancement after the initial share link is queued
 - CD always plays locally via mpv — it doesn't use the player service
+- AirPlay 2 only works with the **local** player: the Pi itself is the receiver (shairport-sync into the PipeWire tone chain), so with a network player there is nothing for it to play into — and Sonos/HEOS/WiiM speakers do AirPlay 2 natively anyway. See [airplay.md](airplay.md).
 - USB auto-detects: if the player supports `url_stream`, it streams track URLs to the player; otherwise falls back to local mpv
 - **B&O ASE** advertises no capabilities — it can't play any BS5c source (no URL-play endpoint). It surfaces transport/metadata/volume for whatever the speaker plays from its *own* sources; TIDAL/Plex/CD/USB/Spotify are all unavailable on it. Use it only if you drive playback from the B&O app.
 
