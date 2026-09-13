@@ -49,9 +49,13 @@ to an existing device is therefore:
 
 ```bash
 # 1. add "AIRPLAY": "airplay" to menu in /etc/beosound5c/config.json
-sudo install/install.sh system     # builds nqptp + shairport-sync
+sudo install/install.sh system     # builds nqptp + shairport-sync, installs their units
 sudo services/system/reconcile-services.sh   # enables nqptp, beo-shairport, beo-source-airplay
 ```
+
+(The module installs its two systemd units itself: an OTA update only
+refreshes unit files that already exist, so a device that gains AirPlay after
+its first install would otherwise have nothing to enable.)
 
 `reconcile-services.sh` (also run on every config save from the web UI) is
 what enables and disables `beo-shairport` and `nqptp`: they follow the

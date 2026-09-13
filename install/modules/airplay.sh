@@ -41,6 +41,11 @@ install_airplay() {
 
     _airplay_dbus_policy
     _airplay_config
+    _airplay_units
+    # Existing config: keep the advertised name in step with config.json
+    # (reconcile-services.sh does this on every config save as well).
+    python3 "$INSTALL_DIR/services/lib/shairport_config.py" "$CONFIG_FILE" "$SHAIRPORT_CONFIG" \
+        || log_warn "Could not sync AirPlay name"
 
     # The unit runs shairport-sync through this wrapper (it resolves
     # airplay.mode into --service-type). An OTA rsync does not always preserve
@@ -50,6 +55,9 @@ install_airplay() {
 
 _airplay_build() {
     log_info "Installing build dependencies..."
+    # A stale index 404s on the first -dev package whose version moved on
+    # (seen with libglib2.0-dev on trixie) — refresh before the big install.
+    apt-get update -qq || log_warn "apt-get update failed — trying with the existing index"
     # plistutil (libplist-utils) is a build-time *binary* dependency of
     # --with-airplay-2 and is NOT pulled in by libplist-dev; configure fails
     # late without it.
@@ -112,6 +120,25 @@ _airplay_build() {
     log_success "shairport-sync installed: $("$SHAIRPORT_BINARY" -V 2>/dev/null)"
 }
 
+_airplay_units() {
+    # install-services.sh installs every unit in the registry on a full
+    # install, but post-update.sh only refreshes units that already exist and
+    # `install.sh system` never touches units at all — so a device that gains
+    # AIRPLAY after its first install would have nothing for
+    # reconcile-services.sh to enable. Install the two this module needs.
+    local UID_
+    UID_=$(id -u "$INSTALL_USER")
+    local unit
+    for unit in beo-shairport.service beo-source-airplay.service; do
+        sed -e "s|__USER__|$INSTALL_USER|g" \
+            -e "s|__HOME__|$INSTALL_HOME|g" \
+            -e "s|__UID__|$UID_|g" \
+            "$INSTALL_DIR/services/system/$unit" > "/etc/systemd/system/$unit"
+    done
+    systemctl daemon-reload
+    log_success "Installed beo-shairport and beo-source-airplay units"
+}
+
 _airplay_dbus_policy() {
     # shairport-sync runs as the service user so it can reach that user's
     # PipeWire graph, but upstream's D-Bus policy only lets root and the
@@ -138,13 +165,13 @@ _airplay_config() {
         return
     fi
 
-    # The AirPlay name is the configured device name, matching go-librespot.
-    local DEVICE_NAME="BeoSound 5c"
-    if [ -f "$CONFIG_FILE" ]; then
-        local CFG_NAME
-        CFG_NAME=$(python3 -c "import json;print(json.load(open('$CONFIG_FILE')).get('device',''))" 2>/dev/null)
-        [ -n "$CFG_NAME" ] && DEVICE_NAME="$CFG_NAME"
-    fi
+    # The AirPlay name is the same one Spotify Connect advertises
+    # ("BeoSound 5c Office"), derived from config.json's device name by
+    # services/lib/shairport_config.py, so the unit appears under one name
+    # in both pickers.
+    local DEVICE_NAME
+    DEVICE_NAME=$(python3 "$INSTALL_DIR/services/lib/shairport_config.py" --name "$CONFIG_FILE" 2>/dev/null \
+        || echo "BeoSound 5c")
 
     log_info "Creating shairport-sync config (name: $DEVICE_NAME)..."
     cat > "$SHAIRPORT_CONFIG" << SPCFG_EOF

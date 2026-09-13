@@ -45,6 +45,13 @@ LIBRESPOT_YML="/etc/beosound5c/librespot/config.yml"
 python3 "$SCRIPT_DIR/../lib/librespot_config.py" "$CONFIG_FILE" "$LIBRESPOT_YML" \
     || echo "⚠️  Could not sync Spotify Connect name"
 
+# --- Sync AirPlay name with the configured device name -------------------
+# Same deal for shairport-sync (it reads its config only at startup; the
+# try-restart below carries the rename through). No-op when there is no
+# shairport-sync.conf, i.e. AirPlay was never installed here.
+python3 "$SCRIPT_DIR/../lib/shairport_config.py" "$CONFIG_FILE" /etc/beosound5c/shairport-sync.conf \
+    || echo "⚠️  Could not sync AirPlay name"
+
 # --- Determine desired player set ----------------------------------------
 PLAYER_TYPE=$(python3 -c "import json;print(json.load(open('$CONFIG_FILE')).get('player',{}).get('type','sonos'))" 2>/dev/null || echo "sonos")
 echo "ℹ️  Configured player type: $PLAYER_TYPE"
