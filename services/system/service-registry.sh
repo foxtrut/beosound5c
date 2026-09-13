@@ -16,6 +16,7 @@ ALL_SERVICES=(
     "beo-player-ase.service"
     "beo-player-local.service"
     "beo-librespot.service"
+    "beo-shairport.service"
     "beo-input.service"
     "beo-router.service"
     "beo-masterlink.service"
@@ -29,6 +30,7 @@ ALL_SERVICES=(
     "beo-source-usb.service"
     "beo-source-news.service"
     "beo-source-radio.service"
+    "beo-source-airplay.service"
     "beo-ui.service"
     "beo-notify-failure@.service"
     "beo-health.service"
@@ -46,6 +48,7 @@ STATUS_SERVICES=(
     "beo-player-ase.service"
     "beo-player-local.service"
     "beo-librespot.service"
+    "beo-shairport.service"
     "beo-input.service"
     "beo-router.service"
     "beo-masterlink.service"
@@ -59,6 +62,7 @@ STATUS_SERVICES=(
     "beo-source-usb.service"
     "beo-source-news.service"
     "beo-source-radio.service"
+    "beo-source-airplay.service"
     "beo-ui.service"
 )
 
@@ -73,6 +77,7 @@ SERVICE_DESC["beo-player-mozart.service"]="B&O Mozart Player (Port 8766)"
 SERVICE_DESC["beo-player-ase.service"]="B&O ASE Player (Port 8766)"
 SERVICE_DESC["beo-player-local.service"]="Local Player (Port 8766)"
 SERVICE_DESC["beo-librespot.service"]="go-librespot (Spotify Connect)"
+SERVICE_DESC["beo-shairport.service"]="shairport-sync (AirPlay 2 receiver)"
 SERVICE_DESC["beo-input.service"]="Hardware Input Server (Port 8765)"
 SERVICE_DESC["beo-router.service"]="Event Router (Port 8770)"
 SERVICE_DESC["beo-masterlink.service"]="MasterLink Sniffer"
@@ -86,6 +91,7 @@ SERVICE_DESC["beo-source-plex.service"]="Plex Source (Port 8778)"
 SERVICE_DESC["beo-source-jellyfin.service"]="Jellyfin Source (Port 8781)"
 SERVICE_DESC["beo-source-news.service"]="News Source (Port 8776)"
 SERVICE_DESC["beo-source-radio.service"]="Radio Source (Port 8779)"
+SERVICE_DESC["beo-source-airplay.service"]="AirPlay Source (Port 8775)"
 SERVICE_DESC["beo-ui.service"]="Chromium UI Kiosk"
 
 # Optional sources: menu_key|service|emoji|label
@@ -100,4 +106,5 @@ OPTIONAL_SOURCES=(
     "USB|beo-source-usb.service|💾|USB source"
     "NEWS|beo-source-news.service|📰|News source"
     "RADIO|beo-source-radio.service|📻|Radio Browser source"
+    "AIRPLAY|beo-source-airplay.service|📶|AirPlay source"
 )
