@@ -140,7 +140,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["beolab5", "sonos", "bluesound", "heos", "wiim", "mozart", "ase", "powerlink", "c4amp", "hdmi", "spdif", "rca"],
+          "enum": ["beolab5", "sonos", "bluesound", "heos", "wiim", "mozart", "ase", "powerlink", "c4amp", "hdmi", "spdif", "rca", "bluetooth"],
           "description": "Volume adapter type. If omitted, inferred from player.type for sonos/bluesound/heos/wiim/mozart/ase, otherwise defaults to 'beolab5'.",
           "default": "beolab5"
         },
@@ -166,6 +166,12 @@
           "type": "string",
           "description": "Display name for the audio output shown in the UI.",
           "default": "BeoLab 5"
+        },
+        "bt_mac": {
+          "type": "string",
+          "pattern": "^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$|^$",
+          "description": "MAC address of the paired Bluetooth speaker (bluetooth only). Pair it from the config page.",
+          "examples": ["AA:BB:CC:DD:EE:FF", ""]
         },
         "zone": {
           "type": "string",
