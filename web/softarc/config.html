@@ -370,6 +370,11 @@ const CFG_SOURCE_DEFS = [
     { key: 'RADIO', label: 'Radio', fields: [
         { fid: 'ir_source', label: 'IR trigger', path: ['radio','source'], isIr: true, optional: true },
     ]},
+    { key: 'WEATHER', label: 'Weather', fields: [
+        { fid: 'latitude', label: 'Latitude', path: ['weather','latitude'], placeholder: '56.172', hint: 'Decimal degrees. Forecast from DMI &mdash; no API key needed.' },
+        { fid: 'longitude', label: 'Longitude', path: ['weather','longitude'], placeholder: '10.199' },
+        { fid: 'location_name', label: 'Location name', path: ['weather','location_name'], placeholder: 'e.g. Christiansbjerg, Aarhus', optional: true, hint: 'Shown on the WEATHER page instead of the coordinates' },
+    ]},
     { key: 'CD', label: 'CD', fields: [
         { fid: 'ir_source', label: 'IR trigger', path: ['cd','source'], isIr: true, optional: true },
         { fid: 'device', label: 'Device path', path: ['cd','device'], placeholder: '/dev/sr0' },
