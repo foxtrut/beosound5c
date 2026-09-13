@@ -21,9 +21,10 @@ when no sender is connected.
 Config (config.json):
     "airplay": { "pipe": "/tmp/shairport-sync-metadata" }
 
-Requires shairport-sync built --with-airplay-2 --with-metadata, plus nqptp.
+Requires shairport-sync built --with-airplay-2 --with-metadata, plus nqptp
+(install/modules/airplay.sh), and player.type "local".
 
-Port: 8775
+Port: 8782
 """
 
 import asyncio
@@ -47,6 +48,9 @@ logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 log = logging.getLogger('beo-source-airplay')
 
 DEFAULT_PIPE = "/tmp/shairport-sync-metadata"
+
+# Built from source by install/modules/airplay.sh; no usable distro package.
+SHAIRPORT_BINARY = "/usr/local/bin/shairport-sync"
 
 # shairport-sync reports progress as RTP frame counts at the AirPlay rate.
 RTP_RATE = 44100
@@ -160,6 +164,30 @@ class AirPlayService(SourceBase):
         self._last_pushed: tuple | None = None
 
     # ── Lifecycle ──
+
+    async def start(self):
+        """Type guard, mirroring the player services.
+
+        shairport-sync writes into this Pi's own PipeWire graph, so the
+        source only makes sense with ``player.type: local``. On a Sonos or
+        Bluesound device it would advertise an AirPlay speaker whose audio
+        goes nowhere (those players already do AirPlay 2 natively).
+        """
+        player_type = cfg("player", "type", default="local")
+        if player_type != "local":
+            log.info("AirPlay needs player.type=local (this device is %s) — exiting",
+                     player_type)
+            from lib.watchdog import sd_notify
+            sd_notify("READY=1\nSTATUS=AirPlay requires a local player, exiting")
+            sd_notify("STOPPING=1")
+            sys.exit(0)
+        if not os.path.exists(SHAIRPORT_BINARY):
+            # Not fatal: the menu entry still appears and the pipe reader
+            # copes with a receiver that shows up later. But say plainly why
+            # nothing will ever stream.
+            log.warning("%s not found — AirPlay 2 receiver is not built. "
+                        "Run: sudo install/install.sh system", SHAIRPORT_BINARY)
+        await super().start()
 
     async def on_start(self):
         await self.register("available")

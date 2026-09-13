@@ -158,6 +158,7 @@
         '8778': 'plex',
         '8781': 'jellyfin',
         '8779': 'radio',
+        '8782': 'airplay',
     };
 
     // Endpoint → demo file, per source. Shapes match what each service
@@ -173,6 +174,10 @@
         radio:       { '/browse': 'radio_browse.json', '/favourites': 'radio_favourites.json' },
         news:        { '/articles': 'news_articles.json' },
         usb:         { '/browse': 'usb_browse.json' },
+        // Idle is the state worth demoing: it is what the AIRPLAY view shows
+        // until someone picks the BeoSound on a phone, and it cannot be
+        // reached from the emulator any other way.
+        airplay:     { '/status': 'airplay_status.json' },
     };
 
     // radio_browse.json is keyed by browse path; the others are served as-is.
@@ -220,18 +225,6 @@
                 active_source: 'spotify', active_source_name: 'Spotify',
                 active_player: 'sonos', output_device: 'BeoLab 5',
                 volume: 32, transport_mode: 'webhook',
-            }));
-        }
-
-        // AirPlay source status. Idle is the interesting state to demo: it is
-        // what the view shows until someone picks the BeoSound on a phone,
-        // and it cannot be reached from the emulator any other way.
-        if (url.includes(':8775/status')) {
-            return Promise.resolve(jsonResponse({
-                source: 'airplay', name: 'AirPlay', play_state: 'idle',
-                session: false, sender: '', pipe_present: true,
-                has_artwork: false, duration: 0, position: 0,
-                title: '', artist: '', album: '',
             }));
         }
 

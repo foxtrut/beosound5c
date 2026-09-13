@@ -39,12 +39,12 @@ DEFAULT_SOURCE_PORTS = {
     "spotify": 8771,
     "usb": 8773,
     "apple_music": 8774,
-    "airplay": 8775,
     "news": 8776,
     "tidal": 8777,
     "plex": 8778,
     "jellyfin": 8781,
     "radio": 8779,
+    "airplay": 8782,
     "join": 8766,
 }
 

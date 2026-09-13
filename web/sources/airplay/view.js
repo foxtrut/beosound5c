@@ -16,7 +16,7 @@
 
 const _airplayController = (() => {
     const STATUS_URL = () =>
-        `${window.AppConfig?.airplayServiceUrl || 'http://localhost:8775'}/status`;
+        `${window.AppConfig?.airplayServiceUrl || 'http://localhost:8782'}/status`;
     const POLL_INTERVAL = 3000;
 
     let pollTimer = null;

@@ -1428,8 +1428,8 @@ _ALLOWED_SERVICES = {
     'beo-player-sonos', 'beo-player-bluesound', 'beo-player-local',
     'beo-source-cd', 'beo-source-spotify', 'beo-source-plex', 'beo-source-radio',
     'beo-source-usb', 'beo-source-news', 'beo-source-tidal', 'beo-source-apple-music',
-    'beo-source-jellyfin',
-    'beo-librespot', 'beo-health', 'beo-beo6',
+    'beo-source-jellyfin', 'beo-source-airplay',
+    'beo-librespot', 'beo-shairport', 'beo-health', 'beo-beo6',
 }
 
 async def restart_service(action: str):

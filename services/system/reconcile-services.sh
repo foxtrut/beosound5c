@@ -96,6 +96,24 @@ for entry in "${OPTIONAL_SOURCES[@]}"; do
     fi
 done
 
+# --- AirPlay 2 receiver (shairport-sync + nqptp) -------------------------
+# Not an optional source in its own right: beo-source-airplay is the menu-
+# gated one above, and this is the daemon behind it. It only makes sense for
+# a local player (audio lands in this Pi's PipeWire graph), and it can only
+# start if install/modules/airplay.sh has built the binary.
+if grep -q '"AIRPLAY"' "$CONFIG_FILE" && [ "$PLAYER_TYPE" = "local" ]; then
+    if [ -x /usr/local/bin/shairport-sync ] && systemctl cat nqptp.service >/dev/null 2>&1; then
+        systemctl enable nqptp.service beo-shairport.service 2>/dev/null || true
+        systemctl start  nqptp.service 2>/dev/null || true
+        systemctl start  beo-shairport.service || OPTIONAL_FAILED+=("beo-shairport.service")
+    else
+        echo "⚠️  AIRPLAY is in the menu but shairport-sync/nqptp are not installed — run: sudo install/install.sh system"
+    fi
+else
+    systemctl disable beo-shairport.service 2>/dev/null || true
+    systemctl stop    beo-shairport.service 2>/dev/null || true
+fi
+
 # --- Restart running beo-* services so they pick up the new config -------
 # beo-ui reconnects automatically — skip it.
 # beo-input is restarted LAST because it may host the caller of this script

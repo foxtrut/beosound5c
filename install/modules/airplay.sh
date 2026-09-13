@@ -12,7 +12,25 @@ SHAIRPORT_BINARY="/usr/local/bin/shairport-sync"
 SHAIRPORT_CONFIG="/etc/beosound5c/shairport-sync.conf"
 AIRPLAY_BUILD_DIR="/var/tmp/beo-airplay-build"
 
+# Gated on config: this is a multi-minute compile with a long list of -dev
+# packages, so it only runs when AIRPLAY is in the menu and the player is
+# local (shairport-sync writes into this Pi's PipeWire graph; on a Sonos or
+# Bluesound device there is nothing for it to play into). Adding AIRPLAY
+# later: edit config.json, then `sudo install/install.sh system`.
+_airplay_wanted() {
+    [ -f "$CONFIG_FILE" ] || return 1
+    grep -q '"AIRPLAY"' "$CONFIG_FILE" || return 1
+    local PLAYER_TYPE
+    PLAYER_TYPE=$(python3 -c "import json;print(json.load(open('$CONFIG_FILE')).get('player',{}).get('type','local'))" 2>/dev/null || echo local)
+    [ "$PLAYER_TYPE" = "local" ]
+}
+
 install_airplay() {
+    if ! _airplay_wanted; then
+        log_info "AirPlay: not in menu (or player is not local) — skipping shairport-sync build"
+        return 0
+    fi
+
     log_section "Installing shairport-sync (AirPlay 2)"
 
     if [ -x "$SHAIRPORT_BINARY" ] && "$SHAIRPORT_BINARY" -V 2>/dev/null | grep -q "AirPlay2"; then

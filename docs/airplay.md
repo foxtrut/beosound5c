@@ -30,10 +30,32 @@ someone picked the BeoSound on their phone, not because a menu item was
 selected. The metadata pipe reader drives source registration, and
 `handle_activate` refuses to claim "playing" when no sender is connected.
 
+## Requirements
+
+* `player.type: "local"`. shairport-sync writes into the Pi's own PipeWire
+  graph, so on a Sonos or Bluesound device there is nothing for it to play
+  into — and those speakers already do AirPlay 2 themselves.
+  `beo-source-airplay` exits at startup on any other player type, the same way
+  the player services guard on `player.type`.
+* `AIRPLAY` in the `menu` section of `config.json` (below).
+
 ## Installing
 
-`install/modules/airplay.sh` does all of it (`install_airplay`). It builds from
-source because there is no usable package — see the traps below.
+`install/modules/airplay.sh` does all of it (`install_airplay`), as part of
+`sudo install/install.sh` (full install or `system`). It builds from source
+because there is no usable package — see the traps below — so it is skipped
+unless the two requirements above are met at the time it runs. Adding AirPlay
+to an existing device is therefore:
+
+```bash
+# 1. add "AIRPLAY": "airplay" to menu in /etc/beosound5c/config.json
+sudo install/install.sh system     # builds nqptp + shairport-sync
+sudo services/system/reconcile-services.sh   # enables nqptp, beo-shairport, beo-source-airplay
+```
+
+`reconcile-services.sh` (also run on every config save from the web UI) is
+what enables and disables `beo-shairport` and `nqptp`: they follow the
+`AIRPLAY` menu key, like the source itself, but only once the binary exists.
 
 ## Configuration
 
@@ -158,7 +180,7 @@ does not pull in.
 
 ```bash
 systemctl is-active nqptp beo-shairport beo-source-airplay
-curl -s localhost:8775/status            # play_state, session, pipe_present
+curl -s localhost:8782/status            # play_state, session, pipe_present
 avahi-browse -rt _airplay._tcp           # the device should be listed on port 7000
 busctl --system introspect org.gnome.ShairportSync /org/gnome/ShairportSync
 ```

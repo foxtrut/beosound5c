@@ -201,7 +201,7 @@
 
     "airplay": {
       "type": "object",
-      "description": "AirPlay 2 source (shairport-sync metadata bridge). See docs/airplay.md.",
+      "description": "AirPlay 2 source (shairport-sync metadata bridge). Requires player.type \"local\" and AIRPLAY in the menu; see docs/airplay.md.",
       "properties": {
         "source": {
           "type": "string",

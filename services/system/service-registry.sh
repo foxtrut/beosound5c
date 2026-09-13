@@ -91,7 +91,7 @@ SERVICE_DESC["beo-source-plex.service"]="Plex Source (Port 8778)"
 SERVICE_DESC["beo-source-jellyfin.service"]="Jellyfin Source (Port 8781)"
 SERVICE_DESC["beo-source-news.service"]="News Source (Port 8776)"
 SERVICE_DESC["beo-source-radio.service"]="Radio Source (Port 8779)"
-SERVICE_DESC["beo-source-airplay.service"]="AirPlay Source (Port 8775)"
+SERVICE_DESC["beo-source-airplay.service"]="AirPlay Source (Port 8782)"
 SERVICE_DESC["beo-ui.service"]="Chromium UI Kiosk"
 
 # Optional sources: menu_key|service|emoji|label
