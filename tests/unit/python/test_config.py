@@ -197,3 +197,18 @@ class TestValidation:
                           "news": {"guardian_api_key": "abc123"}})
             load_config()
         assert not any("NEWS source in menu" in r.message for r in caplog.records)
+
+    def test_errors_on_weather_without_location(self, write_config, caplog):
+        with caplog.at_level(logging.ERROR):
+            write_config({"device": "Church", "menu": {"6": "weather"}})
+            load_config()
+        assert any("WEATHER source in menu but no weather.latitude/longitude" in r.message
+                    for r in caplog.records)
+
+    def test_no_weather_error_when_location_present(self, write_config, caplog):
+        with caplog.at_level(logging.ERROR):
+            write_config({"device": "Church",
+                          "menu": {"6": "weather"},
+                          "weather": {"latitude": "56.172", "longitude": "10.199"}})
+            load_config()
+        assert not any("WEATHER source in menu" in r.message for r in caplog.records)

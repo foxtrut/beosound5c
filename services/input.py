@@ -1427,8 +1427,8 @@ _ALLOWED_SERVICES = {
     'beo-bluetooth', 'beo-masterlink', 'beo-router', 'beo-input', 'beo-http', 'beo-ui',
     'beo-player-sonos', 'beo-player-bluesound', 'beo-player-local',
     'beo-source-cd', 'beo-source-spotify', 'beo-source-plex', 'beo-source-radio',
-    'beo-source-usb', 'beo-source-news', 'beo-source-tidal', 'beo-source-apple-music',
-    'beo-source-jellyfin', 'beo-source-airplay',
+    'beo-source-usb', 'beo-source-news', 'beo-source-weather', 'beo-source-tidal',
+    'beo-source-apple-music', 'beo-source-jellyfin', 'beo-source-airplay',
     'beo-librespot', 'beo-shairport', 'beo-health', 'beo-beo6',
 }
 
