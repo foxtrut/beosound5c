@@ -16,8 +16,8 @@ import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestServer
 
-from sources.calendar import service as calendar_service
-from sources.calendar.service import CalendarService
+from sources.calendar_source import service as calendar_service
+from sources.calendar_source.service import CalendarService
 
 
 # ~300 KB — the size of an ordinary personal calendar, many chunks long.
