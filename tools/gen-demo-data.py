@@ -193,6 +193,7 @@ def build() -> dict[str, object]:
 
     files["weather_forecast.json"] = {
         "updated": 1_700_000_000,
+        "location": {"name": "Aarhus, Denmark", "lat": "56.16", "lon": "10.20"},
         "current": {"temp_c": 14.2, "cloud_pct": 62, "wind_ms": 3.4},
         "today": {
             "date": "2024-11-14",

@@ -1,5 +1,10 @@
 {
  "updated": 1700000000,
+ "location": {
+  "name": "Aarhus, Denmark",
+  "lat": "56.16",
+  "lon": "10.20"
+ },
  "current": {
   "temp_c": 14.2,
   "cloud_pct": 62,
