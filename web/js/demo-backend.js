@@ -197,6 +197,24 @@
         'scenes.json': 'scenes.json',
     };
 
+    // weather_forecast.json ships with fixed clock times (14:00-19:00) so the
+    // committed fixture stays stable for gen-demo-data.py's --check. Relabel
+    // them to start at the real current hour when serving, so the demo looks
+    // live instead of showing hours that have already passed.
+    function _relativizeWeatherDemo(data) {
+        const now = new Date();
+        data.today = data.today || {};
+        data.today.date = now.toISOString().slice(0, 10);
+        data.updated = Math.floor(now.getTime() / 1000);
+        if (Array.isArray(data.hourly)) {
+            const startHour = now.getHours();
+            data.hourly = data.hourly.map((h, i) => (
+                { ...h, time: `${String((startHour + i) % 24).padStart(2, '0')}:00` }
+            ));
+        }
+        return data;
+    }
+
     function jsonResponse(body, status = 200) {
         return new Response(JSON.stringify(body), {
             status,
@@ -304,6 +322,9 @@
             if (file) {
                 return realFetch(ROOT + DEMO_JSON + file, init).then(async r => {
                     if (!r.ok) return jsonResponse([]);
+                    if (file === 'weather_forecast.json') {
+                        return jsonResponse(_relativizeWeatherDemo(await r.json()));
+                    }
                     if (!KEYED_BY_PATH.has(file)) return r;
                     // Browse endpoints take a ?path= and return that level.
                     const levels = await r.json();
