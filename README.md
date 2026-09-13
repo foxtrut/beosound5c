@@ -102,6 +102,7 @@ touch ~/beosound5c/NO_TELEMETRY
 
 - [Audio, players & sources](docs/audio-setup.md) — player types, source compatibility, Spotify setup, volume adapters
 - [Home Assistant integration](docs/home-assistant.md) — MQTT, webhooks, automation examples
+- [Google Calendar source](docs/google-calendar.md) — read-only agenda from a calendar's iCal URL
 - [Remotes & IR](docs/remotes.md) — BeoRemote One pairing, IR source buttons, Beo6
 - [Development & contributing](docs/CONTRIBUTING.md) — local dev setup, repo layout, deploy script
 

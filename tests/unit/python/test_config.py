@@ -197,3 +197,31 @@ class TestValidation:
                           "news": {"guardian_api_key": "abc123"}})
             load_config()
         assert not any("NEWS source in menu" in r.message for r in caplog.records)
+
+    def test_errors_on_calendar_without_url(self, write_config, caplog):
+        with caplog.at_level(logging.ERROR):
+            write_config({"device": "Church", "menu": {"7": "calendar"}})
+            load_config()
+        assert any("CALENDAR source in menu but no calendar.url" in r.message
+                    for r in caplog.records)
+
+    def test_no_calendar_error_when_url_present(self, write_config, caplog):
+        with caplog.at_level(logging.ERROR):
+            write_config({"device": "Church",
+                          "menu": {"7": "calendar"},
+                          "calendar": {"url": "https://example.test/b.ics"}})
+            load_config()
+        assert not any("CALENDAR source in menu" in r.message
+                        for r in caplog.records)
+
+    def test_no_calendar_error_for_calendars_list_only(self, write_config, caplog):
+        """A multi-calendar config sets "calendars", never "url"."""
+        with caplog.at_level(logging.ERROR):
+            write_config({"device": "Church",
+                          "menu": {"7": "calendar"},
+                          "calendar": {"calendars": [
+                              {"name": "Family",
+                               "url": "https://example.test/f.ics"}]}})
+            load_config()
+        assert not any("CALENDAR source in menu" in r.message
+                        for r in caplog.records)

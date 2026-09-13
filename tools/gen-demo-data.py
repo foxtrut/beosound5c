@@ -191,6 +191,54 @@ def build() -> dict[str, object]:
         ]},
     ]
 
+    # Dates are fixed rather than relative to today: `--check` compares the
+    # committed files byte for byte, so a generator that moved with the
+    # calendar would report itself stale every midnight. "Today" here is
+    # Monday 14 Sep 2026 — the emulator only has to render, not be current.
+    def event(summary, time="", end_time="", location="", calendar="",
+              all_day=False, ongoing=False, until=None):
+        item: dict[str, object] = {
+            "summary": summary, "location": location,
+            "calendar": calendar, "all_day": all_day, "time": time,
+        }
+        if not all_day:
+            item["end_time"] = end_time
+            item["ongoing"] = ongoing
+        if until:
+            item["until"] = until
+        return item
+
+    files["calendar_events.json"] = {
+        "updated": 1_789_000_000,
+        "timezone": "Europe/Copenhagen",
+        "days_ahead": 14,
+        "count": 8,
+        "error": None,
+        "days": [
+            {"date": "2026-09-14", "is_today": True, "is_tomorrow": False, "events": [
+                event("Morgenmøde", "09:00", "09:30", calendar="Work"),
+                event("Tandlæge", "13:30", "14:15",
+                      location="Hovedgaden 4", calendar="Family"),
+                event("Korprøve", "19:00", "20:30",
+                      location="Sognegården", calendar="Family"),
+            ]},
+            {"date": "2026-09-15", "is_today": False, "is_tomorrow": True, "events": [
+                event("Ferie i Skagen", all_day=True, calendar="Family",
+                      until="2026-09-18"),
+                event("Kvartalsgennemgang", "10:00", "11:30", calendar="Work"),
+            ]},
+            {"date": "2026-09-17", "is_today": False, "is_tomorrow": False, "events": [
+                event("Bilsyn", "08:15", "09:00",
+                      location="Bilsyn Aarhus Nord", calendar="Family"),
+            ]},
+            {"date": "2026-09-20", "is_today": False, "is_tomorrow": False, "events": [
+                event("Fars fødselsdag", all_day=True, calendar="Family"),
+                event("Middag hos Anne og Lars", "18:00", "22:00",
+                      location="Kirkevej 12", calendar="Family"),
+            ]},
+        ],
+    }
+
     # No stick inserted — the empty browse envelope a device would return.
     files["usb_browse.json"] = {"path": "", "parent": None, "name": "USB", "items": []}
 

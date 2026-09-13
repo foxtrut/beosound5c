@@ -46,6 +46,9 @@ const AppConfig = {
     // News source (Guardian)
     newsServiceUrl: 'http://localhost:8776',
 
+    // Calendar source (Google Calendar iCal)
+    calendarServiceUrl: 'http://localhost:8791',
+
     // Radio source (Radio Browser)
     radioServiceUrl: 'http://localhost:8779',
 

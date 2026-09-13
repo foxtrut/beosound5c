@@ -56,7 +56,7 @@ def test_demo_mode_activates_off_device():
     "tidal_playlists.json", "plex_playlists.json",
     "jellyfin_playlists.json",
     "radio_browse.json", "radio_favourites.json",
-    "news_articles.json", "usb_browse.json",
+    "news_articles.json", "calendar_events.json", "usb_browse.json",
 ])
 def test_demo_file_parses(name):
     data = json.loads((DEMO_JSON / name).read_text())
