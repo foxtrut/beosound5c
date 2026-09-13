@@ -194,6 +194,28 @@ def build() -> dict[str, object]:
     # No stick inserted — the empty browse envelope a device would return.
     files["usb_browse.json"] = {"path": "", "parent": None, "name": "USB", "items": []}
 
+    def dr_article(art_id: str, title: str, color: str) -> dict:
+        return {"id": art_id, "name": title, "icon": "article", "color": color,
+                "page": {"title": title,
+                         "body": "<p><em>Demo-indhold til BeoSound 5c-emulatoren.</em></p>"
+                                 "<p>På en rigtig enhed står DR's artikeltekst her.</p>"}}
+
+    files["dr_news_articles.json"] = [
+        {"id": "sec-senestenyt", "name": "Seneste nyt", "icon": "lightning",
+         "color": "#E74C3C", "articles": [
+             dr_article("dr-s1", "Demo: Havnebussen sejler igen", "#E74C3C"),
+             dr_article("dr-s2", "Demo: Nattoget kører til Berlin", "#E74C3C"),
+         ]},
+        {"id": "sec-indland", "name": "Indland", "icon": "house-line",
+         "color": "#3498DB", "articles": [
+             dr_article("dr-i1", "Demo: Struer fejrer gammel radio", "#3498DB"),
+         ]},
+        {"id": "sec-kultur", "name": "Kultur", "icon": "palette",
+         "color": "#8E44AD", "articles": [
+             dr_article("dr-k1", "Demo: Et flagskib fra 2009 genopbygget", "#8E44AD"),
+         ]},
+    ]
+
     files["config.json"] = {
         "device": "BeoSound 5c",
         "setup_complete": True,

@@ -1,0 +1,66 @@
+[
+ {
+  "id": "sec-senestenyt",
+  "name": "Seneste nyt",
+  "icon": "lightning",
+  "color": "#E74C3C",
+  "articles": [
+   {
+    "id": "dr-s1",
+    "name": "Demo: Havnebussen sejler igen",
+    "icon": "article",
+    "color": "#E74C3C",
+    "page": {
+     "title": "Demo: Havnebussen sejler igen",
+     "body": "<p><em>Demo-indhold til BeoSound 5c-emulatoren.</em></p><p>På en rigtig enhed står DR's artikeltekst her.</p>"
+    }
+   },
+   {
+    "id": "dr-s2",
+    "name": "Demo: Nattoget kører til Berlin",
+    "icon": "article",
+    "color": "#E74C3C",
+    "page": {
+     "title": "Demo: Nattoget kører til Berlin",
+     "body": "<p><em>Demo-indhold til BeoSound 5c-emulatoren.</em></p><p>På en rigtig enhed står DR's artikeltekst her.</p>"
+    }
+   }
+  ]
+ },
+ {
+  "id": "sec-indland",
+  "name": "Indland",
+  "icon": "house-line",
+  "color": "#3498DB",
+  "articles": [
+   {
+    "id": "dr-i1",
+    "name": "Demo: Struer fejrer gammel radio",
+    "icon": "article",
+    "color": "#3498DB",
+    "page": {
+     "title": "Demo: Struer fejrer gammel radio",
+     "body": "<p><em>Demo-indhold til BeoSound 5c-emulatoren.</em></p><p>På en rigtig enhed står DR's artikeltekst her.</p>"
+    }
+   }
+  ]
+ },
+ {
+  "id": "sec-kultur",
+  "name": "Kultur",
+  "icon": "palette",
+  "color": "#8E44AD",
+  "articles": [
+   {
+    "id": "dr-k1",
+    "name": "Demo: Et flagskib fra 2009 genopbygget",
+    "icon": "article",
+    "color": "#8E44AD",
+    "page": {
+     "title": "Demo: Et flagskib fra 2009 genopbygget",
+     "body": "<p><em>Demo-indhold til BeoSound 5c-emulatoren.</em></p><p>På en rigtig enhed står DR's artikeltekst her.</p>"
+    }
+   }
+  ]
+ }
+]

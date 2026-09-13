@@ -64,6 +64,7 @@
             { id: 'jellyfin', title: 'JELLYFIN', preset: 'jellyfin', dynamic: true },
             { id: 'radio', title: 'RADIO', preset: 'radio', dynamic: true },
             { id: 'airplay', title: 'AIRPLAY', preset: 'airplay', dynamic: true },
+            { id: 'dr_news', title: 'DR NYHEDER', preset: 'dr_news', dynamic: true },
             { id: 'scenes', title: 'SCENES' },
             { id: 'security', title: 'SECURITY', type: 'webpage',
               url: 'softarc/security.html' },
@@ -159,6 +160,7 @@
         '8781': 'jellyfin',
         '8779': 'radio',
         '8782': 'airplay',
+        '8792': 'dr_news',
     };
 
     // Endpoint → demo file, per source. Shapes match what each service
@@ -178,6 +180,7 @@
         // until someone picks the BeoSound on a phone, and it cannot be
         // reached from the emulator any other way.
         airplay:     { '/status': 'airplay_status.json' },
+        dr_news:     { '/articles': 'dr_news_articles.json' },
     };
 
     // radio_browse.json is keyed by browse path; the others are served as-is.

@@ -377,6 +377,7 @@ const CFG_SOURCE_DEFS = [
     { key: 'USB', label: 'USB', fields: [
         { fid: 'ir_source', label: 'IR trigger', path: ['usb','source'], isIr: true, optional: true },
     ]},
+    { key: 'DR NYHEDER', label: 'DR News', hint: 'Articles from DR (Danmarks Radio) &mdash; no API key needed. Pick sections in <code>/etc/beosound5c/config.json</code> &rarr; <code>"dr_news"</code> &rarr; <code>"feeds"</code>.' },
     { key: 'NEWS', label: 'News', fields: [
         { fid: 'guardian_api_key', label: 'Guardian API key', path: ['news','guardian_api_key'], placeholder: 'From theguardian.com/developer' },
     ]},
@@ -420,7 +421,7 @@ const TONE_EXCLUDED_TYPES = ['sonos', 'bluesound', 'heos', 'wiim', 'mozart', 'as
 const BALANCE_EXCLUDED_TYPES = ['sonos', 'bluesound', 'heos', 'wiim', 'mozart', 'ase'];
 
 const CFG_SOURCE_VIEWS = {
-    'PLAYING':'playing','SPEAKERS':'join','JOIN':'join','SPOTIFY':'spotify','TIDAL':'tidal',
+    'PLAYING':'playing','DR NYHEDER':'dr_news','SPEAKERS':'join','JOIN':'join','SPOTIFY':'spotify','TIDAL':'tidal',
     'APPLE MUSIC':'apple_music','PLEX':'plex','JELLYFIN':'jellyfin','RADIO':'radio','CD':'cd',
     'USB':'usb','NEWS':'news','SCENES':'scenes','SYSTEM':'system','SHOWING':'showing',
 };
