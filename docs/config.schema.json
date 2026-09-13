@@ -289,6 +289,51 @@
       "additionalProperties": false
     },
 
+    "calendar": {
+      "type": "object",
+      "description": "Calendar source settings (Google Calendar, read-only). Uses a calendar's iCal URL, so there is no OAuth client or API key to set up — see docs/google-calendar.md. Treat the secret URL as a credential: it grants read access to the calendar. If CALENDAR is in the menu without a URL, the source logs a warning and beo-source-calendar refuses to start.",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "A calendar's 'Secret address in iCal format' from Google Calendar → Settings for my calendars → Integrate calendar. Ends in .ics."
+        },
+        "name": {
+          "type": "string",
+          "description": "Optional label shown next to this calendar's events. Only useful alongside 'calendars'."
+        },
+        "calendars": {
+          "type": "array",
+          "description": "Additional calendars, merged into one agenda. Each entry may be a plain URL string or an object with 'name' and 'url'.",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "url": { "type": "string" }
+                },
+                "required": ["url"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "days_ahead": {
+          "type": "integer",
+          "description": "How far ahead the agenda reaches, in days (1-365).",
+          "minimum": 1,
+          "maximum": 365,
+          "default": 14
+        },
+        "timezone": {
+          "type": "string",
+          "description": "IANA zone the agenda is rendered in, e.g. 'Europe/Copenhagen'. Defaults to the device's own timezone."
+        }
+      },
+      "additionalProperties": false
+    },
+
     "masterlink": {
       "type": "object",
       "description": "B&O Master Link bus role + IR filter. Read by services/masterlink.py at startup.",

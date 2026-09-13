@@ -13,6 +13,7 @@
     "PLEX": "plex",
     "JELLYFIN": "jellyfin",
     "NEWS": "news",
+    "CALENDAR": "calendar",
     "RADIO": "radio",
     "SCENES": "scenes",
     "SYSTEM": "system"
@@ -43,6 +44,7 @@
   "spotify": { "client_id": "" },
   "radio": { "source": "radio" },
   "news": { "guardian_api_key": "test" },
+  "calendar": { "url": "", "days_ahead": 14 },
   "masterlink": {
     "role": "master",
     "ir": { "audio": true, "video": true },
