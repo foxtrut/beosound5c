@@ -141,7 +141,12 @@ def test_parse_controller():
     show = ("Controller 2C:CF:67:00:11:22 (public)\n\tManufacturer: 0x0131 (305)\n"
             "\tName: beosound5c\n\tPowered: no\n\tDiscovering: no\n")
     assert bts.parse_controller(show) == {
-        "address": "2C:CF:67:00:11:22", "powered": False, "discovering": False}
+        "address": "2C:CF:67:00:11:22", "powered": False, "discovering": False,
+        "classic": False, "a2dp": False}
+    full = show.replace("\tPowered: no", "\tClass: 0x006c0000 (7077888)\n\tPowered: yes") + \
+        "\tUUID: Audio Sink                (0000110b-0000-1000-8000-00805f9b34fb)\n"
+    controller = bts.parse_controller(full)
+    assert controller["classic"] and controller["a2dp"] and controller["powered"]
     assert bts.parse_controller(show.replace("Powered: no", "Powered: yes"))["powered"]
     assert bts.parse_controller("No default controller available\n") is None
     assert bts.parse_controller("") is None
@@ -160,6 +165,50 @@ def test_scan_messages_keeps_errors_and_new_devices():
         "[NEW] Device 00:11:22:33:44:55 Kanto YU4",
         "Failed to start discovery: org.bluez.Error.NotReady",
     ]
+
+
+def _fake_bluetoothctl(monkeypatch, responses):
+    """Patch bts._run; responses maps a command's words (after --timeout N)
+    to its output. Returns the list of commands run."""
+    calls = []
+
+    async def fake_run(*args, timeout=5.0):
+        words = [a for a in args[1:] if a != "--timeout" and not a.isdigit()]
+        calls.append(" ".join(words))
+        return responses.get(" ".join(words), ""), 0
+    monkeypatch.setattr(bts, "_run", fake_run)
+    return calls
+
+
+SHOW = "Controller 2C:CF:67:AC:0F:4A (public)\n\tClass: 0x006c0000\n\tPowered: yes\n"
+
+
+def test_scan_asks_for_classic_inquiry(monkeypatch):
+    calls = _fake_bluetoothctl(monkeypatch, {
+        "show": SHOW,
+        "scan bredr": "Discovery started\n[NEW] Device 00:11:22:33:44:55 Kanto YU4\n",
+        "devices": "Device 00:11:22:33:44:55 Kanto YU4\n",
+        f"info {MAC}": SPEAKER_INFO,
+    })
+    found = _run(bts.scan(12))
+    assert calls[:2] == ["show", "scan bredr"]
+    assert "scan on" not in calls
+    assert found == [{"mac": MAC, "name": "Kanto YU4", "paired": True, "connected": False}]
+
+
+def test_scan_falls_back_when_bredr_is_rejected(monkeypatch):
+    calls = _fake_bluetoothctl(monkeypatch, {
+        "show": SHOW,
+        "scan bredr": "Invalid argument bredr\n",
+    })
+    assert _run(bts.scan(12)) == []
+    assert calls[:3] == ["show", "scan bredr", "scan on"]
+
+
+def test_scan_without_controller_returns_nothing(monkeypatch):
+    calls = _fake_bluetoothctl(monkeypatch, {"show": "No default controller available\n"})
+    assert _run(bts.scan(12)) == []
+    assert calls == ["show"]
 
 
 def test_describe():

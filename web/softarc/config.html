@@ -1769,8 +1769,9 @@ async function scanBtSpeakers(event) {
     btn.textContent = 'Scanning...'; btn.disabled = true;
     resultEl.classList.remove('show');
     try {
-        // The device runs Bluetooth discovery for 8s before it answers.
-        const resp = await fetch(API + '/bt/speakers?scan=8', { signal: AbortSignal.timeout(30000) });
+        // The device runs Bluetooth discovery for 12s (one full classic
+        // inquiry) and then queries each device found before it answers.
+        const resp = await fetch(API + '/bt/speakers?scan=12', { signal: AbortSignal.timeout(60000) });
         const devices = await resp.json();
         if (!Array.isArray(devices) || !devices.length) {
             resultEl.innerHTML = '<span class="cfg-discover-empty">No Bluetooth speakers found — put the speaker in pairing mode and scan again</span>';
