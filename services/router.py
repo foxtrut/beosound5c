@@ -80,6 +80,7 @@ MENU_LABELS = {
         "playing": "AFSPILLER", "join": "HØJTTALERE", "news": "NYHEDER",
         "scenes": "SCENER", "security": "SIKKERHED", "showing": "VISER",
         "weather": "VEJR", "calendar": "KALENDER",
+        "todo": "HUSKELISTE",
     },
 }
 

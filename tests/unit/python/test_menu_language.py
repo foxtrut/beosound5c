@@ -83,3 +83,9 @@ def test_danish_translates_the_injected_speakers_entry():
 def test_unknown_language_falls_back_to_configured_titles():
     router = _make_router(language="fr")
     assert _titles(router)["news"] == "NEWS"
+
+
+def test_todo_list_is_huskeliste_in_danish_and_to_do_otherwise():
+    assert _titles(_make_router(menu={"TO-DO": "todo"}, language="da"))["todo"] == "HUSKELISTE"
+    assert _titles(_make_router(menu={"TO-DO": "todo"}, language="en"))["todo"] == "TO-DO"
+    assert _titles(_make_router(menu={"TO-DO": "todo"}, language="auto"))["todo"] == "TO-DO"
