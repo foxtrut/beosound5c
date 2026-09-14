@@ -169,6 +169,8 @@ def is_audio_sink(info: dict | None) -> bool:
 
 def find_bluez_sink(short_sinks: str, mac: str) -> str | None:
     """Name of the speaker's sink in ``pactl list sinks short``, if present."""
+    if not normalize_mac(mac):
+        return None  # "bluez_output." alone would match any Bluetooth sink
     prefix = sink_prefix(mac)
     for line in short_sinks.splitlines():
         parts = line.split("\t")

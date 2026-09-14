@@ -115,6 +115,8 @@ def test_find_bluez_sink_matches_both_naming_styles():
     legacy = "12\tbluez_output.00_11_22_33_44_55.a2dp-sink\tPipeWire\ts16le 2ch 44100Hz\tIDLE\n"
     assert bts.find_bluez_sink(legacy, MAC) == "bluez_output.00_11_22_33_44_55.a2dp-sink"
     assert bts.find_bluez_sink(SINKS_SHORT, "AA:AA:AA:AA:AA:AA") is None
+    # No speaker configured must not grab whichever Bluetooth sink exists.
+    assert bts.find_bluez_sink(SINKS_SHORT, "") is None
 
 
 def test_find_sink_input():
