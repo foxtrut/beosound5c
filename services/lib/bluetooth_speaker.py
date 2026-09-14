@@ -103,8 +103,13 @@ def parse_info(output: str) -> dict | None:
 
 
 def parse_controller(output: str) -> dict | None:
-    """``bluetoothctl show`` → {address, powered, discovering}, or None when
-    there is no controller."""
+    """``bluetoothctl show`` → dict, or None when there is no controller.
+
+    ``classic``: the adapter has a Class of Device, which only BR/EDR-enabled
+    adapters have — without it A2DP speakers can't be found at all.
+    ``a2dp``: PipeWire has registered its A2DP endpoints (Audio Sink/Source
+    UUIDs), i.e. its Bluetooth plugin is loaded.
+    """
     text = _clean(output)
     m = re.search(r"Controller ((?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2})", text)
     if not m or "No default controller" in text:
@@ -113,6 +118,8 @@ def parse_controller(output: str) -> dict | None:
     for key in ("Powered", "Discovering"):
         fm = re.search(rf"^\s*{key}:\s*(\w+)", text, re.MULTILINE)
         flags[key.lower()] = bool(fm and fm.group(1).lower() == "yes")
+    flags["classic"] = re.search(r"^\s*Class:\s*0x", text, re.MULTILINE) is not None
+    flags["a2dp"] = re.search(r"UUID: Audio (Sink|Source)", text) is not None
     return {"address": m.group(1).upper(), **flags}
 
 
@@ -272,6 +279,11 @@ class BluetoothSpeaker:
         return rc == 0
 
 
+def _rejected_argument(output: str) -> bool:
+    text = _clean(output)
+    return "Invalid argument" in text or "Usage:" in text
+
+
 async def _devices() -> list[tuple[str, str]]:
     out, _ = await _run("bluetoothctl", "devices")
     return parse_devices(out)
@@ -287,14 +299,27 @@ async def scan(seconds: float = 8, exclude: set[str] | None = None) -> list[dict
         log.error("Bluetooth scan: no controller (%s)",
                   " / ".join(scan_messages(show, 3)) or "bluetoothctl show was empty")
         return []
-    log.info("Bluetooth scan: controller %s, powered=%s, %ds",
-             controller["address"], controller["powered"], seconds)
+    log.info("Bluetooth scan: controller %s, powered=%s, classic=%s, "
+             "a2dp-endpoints=%s, %ds", controller["address"], controller["powered"],
+             controller["classic"], controller["a2dp"], seconds)
+    if not controller["classic"]:
+        log.warning("Bluetooth scan: controller has BR/EDR (classic) disabled — "
+                    "A2DP speakers can't be found (ControllerMode=le in "
+                    "/etc/bluetooth/main.conf?)")
     if not controller["powered"]:
         out, _ = await _run("bluetoothctl", "power", "on")
         log.info("Bluetooth scan: power on → %s", " / ".join(scan_messages(out, 3)))
     if seconds:
-        out, rc = await _run("bluetoothctl", "--timeout", str(seconds), "scan", "on",
+        # A2DP speakers are classic (BR/EDR) devices. A plain `scan on` on
+        # BlueZ 5.82 turned up only LE advertisers, so ask for BR/EDR
+        # inquiry explicitly; bluetoothctl without transport arguments
+        # rejects "bredr", and then gets the plain scan.
+        out, rc = await _run("bluetoothctl", "--timeout", str(seconds), "scan", "bredr",
                              timeout=seconds + 5)
+        if _rejected_argument(out):
+            log.info("Bluetooth scan: no 'scan bredr' in this bluetoothctl — scanning all")
+            out, rc = await _run("bluetoothctl", "--timeout", str(seconds), "scan", "on",
+                                 timeout=seconds + 5)
         for line in scan_messages(out):
             log.info("Bluetooth scan: %s", line)
         log.info("Bluetooth scan: bluetoothctl exited rc=%d", rc)
