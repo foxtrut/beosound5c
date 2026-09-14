@@ -135,6 +135,11 @@ setup_audio_hat() {
     cp "$INSTALL_DIR/install/configs/51-beosound5c-volume.conf" /etc/wireplumber/wireplumber.conf.d/
     log_info "WirePlumber default volume set to 100%"
 
+    # WirePlumber: run the BlueZ monitor without a seat session, so a paired
+    # Bluetooth speaker gets a sink (volume.type "bluetooth")
+    cp "$INSTALL_DIR/install/configs/54-beosound5c-bluetooth.conf" /etc/wireplumber/wireplumber.conf.d/
+    log_info "WirePlumber Bluetooth audio enabled without a login session"
+
     # PipeWire filter-chain: tone controls (bass/treble/balance/loudness)
     # live as biquad shelves + per-channel gains on a virtual sink
     # named beo_tone_sink.  masterlink.py drives them via pw-cli.

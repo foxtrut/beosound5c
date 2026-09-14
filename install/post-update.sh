@@ -146,14 +146,25 @@ if [ -f "$TONE_SRC" ]; then
     fi
 fi
 
-# ── 3b. Bluetooth speaker audio packages ─────────────────────────────────────
-# The Bluetooth speaker output (lib/bluetooth_speaker.py) routes and sets
-# volume with pactl, and PipeWire only creates A2DP sinks with its Bluetooth
-# plugin. Neither is guaranteed: pipewire-pulse doesn't pull in
-# pulseaudio-utils, and install.sh only fetched the plugin from backports,
-# which fails where backports carries no PipeWire. WirePlumber is restarted
-# after the plugin arrives so it starts its Bluetooth monitor. Failure-tolerant
-# — apt trouble must not abort the update.
+# ── 3b. Bluetooth speaker audio ──────────────────────────────────────────────
+# The Bluetooth speaker output (lib/bluetooth_speaker.py) needs:
+#   - pactl (pulseaudio-utils) to route and set volume — pipewire-pulse doesn't
+#     pull it in;
+#   - PipeWire's Bluetooth plugin (libspa-0.2-bluetooth) — install.sh only
+#     fetched it from backports, which fails where backports has no PipeWire;
+#   - WirePlumber's BlueZ monitor running without a login session
+#     (54-beosound5c-bluetooth.conf) — 0.5 only starts it for a user on a seat.
+# WirePlumber is restarted when any of that changed. Failure-tolerant — apt
+# trouble must not abort the update.
+WP_RESTART=0
+BT_CONF_SRC="$BASE_DIR/install/configs/54-beosound5c-bluetooth.conf"
+BT_CONF_DEST="/etc/wireplumber/wireplumber.conf.d/54-beosound5c-bluetooth.conf"
+if [ -f "$BT_CONF_SRC" ] && ! cmp -s "$BT_CONF_SRC" "$BT_CONF_DEST"; then
+    mkdir -p "$(dirname "$BT_CONF_DEST")"
+    install -m 0644 "$BT_CONF_SRC" "$BT_CONF_DEST"
+    log "Installed $(basename "$BT_CONF_DEST")"
+    WP_RESTART=1
+fi
 BT_AUDIO_PKGS=""
 for pkg in pulseaudio-utils libspa-0.2-bluetooth; do
     dpkg -s "$pkg" >/dev/null 2>&1 || BT_AUDIO_PKGS="$BT_AUDIO_PKGS $pkg"
@@ -164,19 +175,22 @@ if [ -n "$BT_AUDIO_PKGS" ]; then
             || { apt-get update -qq >/dev/null 2>&1 \
                  && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $BT_AUDIO_PKGS >/dev/null 2>&1; }; then
         log "Installed:$BT_AUDIO_PKGS"
-        if sudo -u "$SERVICE_USER" \
-               XDG_RUNTIME_DIR="/run/user/$SERVICE_UID" \
-               DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$SERVICE_UID/bus" \
-               systemctl --user restart wireplumber.service 2>/dev/null; then
-            log "wireplumber.service restarted"
-        else
-            log "wireplumber.service restart skipped (no user session yet — will load on next login)"
-        fi
+        WP_RESTART=1
     else
         log "apt-get install of$BT_AUDIO_PKGS failed — will retry on next update"
     fi
 else
     log "Bluetooth speaker audio packages already installed"
+fi
+if [ "$WP_RESTART" = 1 ]; then
+    if sudo -u "$SERVICE_USER" \
+           XDG_RUNTIME_DIR="/run/user/$SERVICE_UID" \
+           DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$SERVICE_UID/bus" \
+           systemctl --user restart wireplumber.service 2>/dev/null; then
+        log "wireplumber.service restarted"
+    else
+        log "wireplumber.service restart skipped (no user session yet — will load on next login)"
+    fi
 fi
 
 # ── 4. daemon-reload (picks up any service file changes from step 1) ─────────
