@@ -89,7 +89,10 @@ const _WX_STRINGS = {
 };
 
 function _wxT(key, vars) {
-    let lang = (navigator.language || 'en').toLowerCase().split('-')[0];
+    // An explicit device setting (config.json's "language") wins over the
+    // browser's own locale when set to anything but "auto"/unset.
+    const override = window.AppConfig?.language;
+    let lang = ((override && override !== 'auto') ? override : navigator.language || 'en').toLowerCase().split('-')[0];
     if (lang === 'no' || lang === 'nn') lang = 'nb';
     let text = (_WX_STRINGS[lang] || _WX_STRINGS.en)[key];
     for (const [name, value] of Object.entries(vars || {})) {
