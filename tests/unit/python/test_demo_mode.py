@@ -56,7 +56,7 @@ def test_demo_mode_activates_off_device():
     "tidal_playlists.json", "plex_playlists.json",
     "jellyfin_playlists.json",
     "radio_browse.json", "radio_favourites.json",
-    "news_articles.json", "usb_browse.json",
+    "news_articles.json", "usb_browse.json", "todo_items.json",
 ])
 def test_demo_file_parses(name):
     data = json.loads((DEMO_JSON / name).read_text())
@@ -161,7 +161,7 @@ def test_pages_load_the_backend():
     """Each frame has its own fetch, so each page needs its own interception."""
     assert "demo-backend.js" in (WEB / "index.html").read_text()
     for page in ("spotify", "tidal", "apple_music", "plex", "jellyfin", "radio",
-                 "scenes", "news", "usb"):
+                 "scenes", "news", "usb", "todo"):
         html = (WEB / "softarc" / f"{page}.html").read_text()
         assert "demo-backend.js" in html, f"{page}.html does not load the demo backend"
 

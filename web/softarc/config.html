@@ -377,6 +377,7 @@ const CFG_SOURCE_DEFS = [
     { key: 'USB', label: 'USB', fields: [
         { fid: 'ir_source', label: 'IR trigger', path: ['usb','source'], isIr: true, optional: true },
     ]},
+    { key: 'HUSKELISTE', label: 'Huskeliste', hint: `Indkøbsliste / to do med afkrydsning. Redigeres fra mobilen på <code>http://${location.hostname}:8793</code> &mdash; kun på hjemmenetværket.` },
     { key: 'NEWS', label: 'News', fields: [
         { fid: 'guardian_api_key', label: 'Guardian API key', path: ['news','guardian_api_key'], placeholder: 'From theguardian.com/developer' },
     ]},
@@ -422,7 +423,7 @@ const BALANCE_EXCLUDED_TYPES = ['sonos', 'bluesound', 'heos', 'wiim', 'mozart', 
 const CFG_SOURCE_VIEWS = {
     'PLAYING':'playing','SPEAKERS':'join','JOIN':'join','SPOTIFY':'spotify','TIDAL':'tidal',
     'APPLE MUSIC':'apple_music','PLEX':'plex','JELLYFIN':'jellyfin','RADIO':'radio','CD':'cd',
-    'USB':'usb','NEWS':'news','SCENES':'scenes','SYSTEM':'system','SHOWING':'showing',
+    'USB':'usb','NEWS':'news','HUSKELISTE':'todo','SCENES':'scenes','SYSTEM':'system','SHOWING':'showing',
 };
 
 let _cfg = null;

@@ -10,6 +10,7 @@
         'beo-player-sonos': 'Running', 'beo-source-cd': 'Running',
         'beo-source-spotify': 'Running', 'beo-source-tidal': 'Running',
         'beo-source-usb': 'Inactive', 'beo-source-news': 'Running',
+        'beo-source-todo': 'Running',
     };
 
     const system = {

@@ -1,0 +1,195 @@
+:root {
+    color-scheme: dark;
+    --bg: #000;
+    --panel: #151515;
+    --line: #2a2a2a;
+    --text: #f2f2f2;
+    --muted: #8c8c8c;
+    --accent: #ffaa00;
+    --done: #66cc66;
+    --danger: #e05555;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 17px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+}
+
+main {
+    max-width: 36rem;
+    margin: 0 auto;
+    padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+             max(2rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+}
+
+h1 {
+    margin: .5rem 0 1rem;
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+}
+
+.status {
+    margin: 0 0 1rem;
+    padding: .6rem .8rem;
+    border-radius: .6rem;
+    background: rgba(224, 85, 85, .15);
+    color: #ffb3b3;
+    font-size: .95rem;
+}
+
+form {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    gap: .5rem;
+    padding: .5rem 0;
+    margin-bottom: .5rem;
+    background: var(--bg);
+}
+
+input[type="text"] {
+    flex: 1;
+    min-width: 0;
+    padding: .75rem .9rem;
+    font: inherit;
+    color: var(--text);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: .7rem;
+}
+
+input[type="text"]:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+    border-color: transparent;
+}
+
+button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+form button,
+.secondary {
+    padding: .75rem 1.1rem;
+    border: 0;
+    border-radius: .7rem;
+    background: var(--accent);
+    color: #000;
+    font-weight: 600;
+}
+
+.items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.item {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+    min-height: 3.5rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.check,
+.remove {
+    flex: none;
+    width: 3rem;
+    height: 3rem;
+    padding: 0;
+    background: none;
+    border: 0;
+}
+
+.check::before {
+    content: "";
+    display: block;
+    width: 1.5rem;
+    height: 1.5rem;
+    margin: auto;
+    border: 2px solid var(--muted);
+    border-radius: .4rem;
+    color: #000;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.3rem;
+    text-align: center;
+}
+
+.done .check::before {
+    content: "✓";
+    background: var(--done);
+    border-color: var(--done);
+}
+
+.text {
+    flex: 1;
+    min-width: 0;
+    padding: .8rem .25rem;
+    background: none;
+    border: 0;
+    text-align: left;
+    overflow-wrap: anywhere;
+}
+
+.done .text {
+    color: var(--muted);
+    text-decoration: line-through;
+}
+
+.edit {
+    margin: .4rem 0;
+}
+
+.remove {
+    color: var(--muted);
+    font-size: 1.6rem;
+    line-height: 1;
+}
+
+.remove:active {
+    color: var(--danger);
+}
+
+.empty {
+    padding: 2rem 0;
+    color: var(--muted);
+    text-align: center;
+}
+
+footer {
+    margin-top: 1.5rem;
+    text-align: center;
+}
+
+.secondary {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--line);
+    font-weight: 500;
+}
+
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
