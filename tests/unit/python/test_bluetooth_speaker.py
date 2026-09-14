@@ -310,10 +310,35 @@ def test_standby_disconnects_and_stays_disconnected():
     assert adapter.is_on_cached() is False
     assert _run(adapter.sync_once()) is None
     assert "connect" not in speaker.calls
-    _run(adapter.power_on())                 # wake: connect right away
+    async def wake():
+        await adapter.power_on()             # returns before connecting...
+        assert adapter.is_on_cached() is True
+        await asyncio.sleep(0.01)            # ...which then happens right away
+    _run(wake())
     assert "connect" in speaker.calls
-    assert adapter.is_on_cached() is True
 
+
+def test_power_on_does_not_wait_for_the_connection():
+    class SlowSpeaker(_FakeSpeaker):
+        async def connect(self):
+            await asyncio.sleep(10)
+            return False
+    adapter = _adapter(SlowSpeaker())
+
+    async def wake():
+        await asyncio.wait_for(adapter.power_on(), timeout=0.5)
+        await adapter.close()
+    _run(wake())
+
+
+def test_concurrent_syncs_connect_once():
+    speaker = _FakeSpeaker()
+    adapter = _adapter(speaker)
+
+    async def both():
+        await asyncio.gather(adapter.sync_once(), adapter.sync_once())
+    _run(both())
+    assert speaker.calls.count("connect") == 1
 
 def test_apply_volume_when_connected():
     speaker = _FakeSpeaker(sink="bluez_output.00_11_22_33_44_55.1")

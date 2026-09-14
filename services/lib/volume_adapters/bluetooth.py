@@ -37,6 +37,9 @@ class BluetoothVolume(VolumeAdapter):
         self._last_volume: float | None = None
         self._tasks = BackgroundTaskSet(logger, label="bt-speaker")
         self._watch: asyncio.Task | None = None
+        # One connect/route attempt at a time: power_on's immediate attempt
+        # and the watch loop's tick would otherwise both call connect.
+        self._sync_lock = asyncio.Lock()
 
     def _ensure_watch(self) -> None:
         if not self._speaker.mac:
@@ -57,6 +60,10 @@ class BluetoothVolume(VolumeAdapter):
     async def sync_once(self) -> str | None:
         """One watch tick: connect if wanted and missing, route a sink that
         (re)appeared. Returns the routed sink, if any."""
+        async with self._sync_lock:
+            return await self._sync()
+
+    async def _sync(self) -> str | None:
         if not self._wanted or not self._speaker.mac:
             return None
         sink = await self._speaker.find_sink()
@@ -109,7 +116,10 @@ class BluetoothVolume(VolumeAdapter):
         self._wanted = True
         self._next_connect_at = 0.0
         self._ensure_watch()
-        await self.sync_once()
+        # Connecting takes seconds (up to 20s when the speaker is off) and the
+        # router awaits power_on inside request handlers — start it now, but
+        # in the background.
+        self._tasks.spawn(self.sync_once(), name="bt_speaker_power_on")
 
     async def power_off(self) -> None:
         self._wanted = False
