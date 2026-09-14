@@ -15,4 +15,5 @@ Current sources:
   news.py     — RSS/TTS news playback via local mpv
   weather.py  — DMI forecast display (no playback)
   calendar_source/ — Google Calendar agenda display (no playback)
+  dr_news.py  — DR (Danmarks Radio) news browsing from RSS (no playback)
 """

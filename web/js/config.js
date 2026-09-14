@@ -51,6 +51,8 @@ const AppConfig = {
 
     // Calendar source (Google Calendar iCal)
     calendarServiceUrl: 'http://localhost:8791',
+    // DR News source (DR RSS feeds)
+    drNewsServiceUrl: 'http://localhost:8792',
 
     // Radio source (Radio Browser)
     radioServiceUrl: 'http://localhost:8779',

@@ -34,6 +34,7 @@ SOURCE_MODULES = [
     "sources.tidal.service",
     "sources.usb.service",
     "sources.radio.service",
+    "sources.dr_news",
     "sources.news",
     "sources.weather",
     "sources.calendar_source.service",
