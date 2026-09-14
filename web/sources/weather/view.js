@@ -189,6 +189,10 @@ function _weatherRender(data) {
     const nowRaining = hours.length > 0 && hours[0].rain_mm != null && hours[0].rain_mm > 0;
     const nowIcon = _weatherIconClass(cur.cloud_pct, nowRaining);
     const locLabel = _weatherLocationLabel(data.location);
+    // Open-Meteo's data is CC BY 4.0 — the credit is required, not decoration.
+    const credit = data.provider === 'open_meteo'
+        ? 'Weather data by Open-Meteo.com (DMI model)'
+        : 'Weather data by DMI';
 
     textEl.innerHTML = `
         ${locLabel ? `<div class="wx-loc">${locLabel}</div>` : ''}
@@ -199,6 +203,7 @@ function _weatherRender(data) {
         </div>
         <div class="wx-rain ${today.will_rain ? 'yes' : ''}">${rainLine}</div>
         <div class="wx-hourly">${hourly}</div>
+        <div class="wx-credit">${credit}</div>
     `;
 }
 
@@ -338,6 +343,7 @@ window.SourcePresets.weather = {
                 #weather-view .wx-hour .ph { display:block; font-size:1.3rem; color:#a8c8e8; margin:2px 0; }
                 #weather-view .wx-hour .r { color:#7ec8ff; margin-top:4px; font-size:0.75rem; min-height:1em; }
                 #weather-view .wx-error { color:rgba(255,255,255,0.5); font-size:0.95rem; }
+                #weather-view .wx-credit { font-size:0.7rem; letter-spacing:0.5px; color:rgba(255,255,255,0.35); margin-top:16px; }
                 #weather-view .wx-radar-label { font-size:0.8rem; letter-spacing:1px; color:rgba(255,255,255,0.4); text-transform:uppercase; margin:28px 0 10px; }
                 #weather-view #wx-radar-map { position:relative; height:280px; border-radius:8px; overflow:hidden; background:#111; }
                 #weather-view #wx-radar-time { position:absolute; top:10px; left:10px; z-index:1000; background:rgba(0,0,0,0.55); color:#fff; font-size:0.8rem; letter-spacing:0.5px; padding:4px 10px; border-radius:12px; pointer-events:none; }

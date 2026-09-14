@@ -129,3 +129,69 @@ def test_refresh_loop_retries_quickly_until_a_fetch_succeeds(monkeypatch):
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(svc._refresh_loop())
     assert sleeps == [60, 120, REFRESH_INTERVAL]
+
+
+def test_open_meteo_steps_accumulate_hourly_precipitation(frozen_now):
+    """Open-Meteo gives rain per hour; _build_summary diffs an accumulated
+    total (DMI's shape), so the parser has to accumulate it."""
+    base = int(real_datetime.datetime(2026, 9, 13, 19, tzinfo=TZ).timestamp())
+    data = {"hourly": {
+        "time": [base + h * 3600 for h in range(3)],
+        "temperature_2m": [14.0, 13.5, 13.0],
+        "precipitation": [0.0, 0.05, 1.15],
+        "cloud_cover": [40, 80, 100],
+        "wind_speed_10m": [3.1, 3.4, 4.0],
+    }}
+    svc = WeatherService()
+    steps = svc._parse_open_meteo_steps(data)
+    assert [s["time"].hour for s in steps] == [19, 20, 21]
+    assert [s["precip_cum_mm"] for s in steps] == [0.0, 0.05, 1.2]
+
+    summary = svc._build_summary(steps, "open_meteo")
+    assert summary["provider"] == "open_meteo"
+    assert summary["current"] == {"temp_c": 14.0, "cloud_pct": 40, "wind_ms": 3.1}
+    assert summary["today"]["will_rain"] is True
+    assert summary["today"]["rain_mm"] == 1.2
+
+
+def _service_with_providers(dmi, open_meteo):
+    """A service whose two fetchers return (or raise) the given outcomes."""
+    svc = WeatherService()
+    calls = []
+
+    def fetcher(name, outcome):
+        async def fetch():
+            calls.append(name)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+        return fetch
+
+    svc._fetch_dmi_steps = fetcher("dmi", dmi)
+    svc._fetch_open_meteo_steps = fetcher("open_meteo", open_meteo)
+    return svc, calls
+
+
+def test_fetch_uses_dmi_and_skips_open_meteo_when_dmi_answers(frozen_now):
+    svc, calls = _service_with_providers([_step(19, 14.3)], [_step(19, 99.0)])
+    assert asyncio.run(svc._fetch_forecast()) is True
+    assert calls == ["dmi"]
+    assert svc._forecast["provider"] == "dmi"
+    assert svc._forecast["current"]["temp_c"] == 14.3
+
+
+@pytest.mark.parametrize("dmi_outcome", [[], TimeoutError()], ids=["refused", "timed-out"])
+def test_fetch_falls_back_to_open_meteo_when_dmi_fails(frozen_now, dmi_outcome):
+    """DMI refusing (429 → no steps) or raising must not leave the page empty."""
+    svc, calls = _service_with_providers(dmi_outcome, [_step(19, 12.0)])
+    assert asyncio.run(svc._fetch_forecast()) is True
+    assert calls == ["dmi", "open_meteo"]
+    assert svc._forecast["provider"] == "open_meteo"
+    assert svc._forecast["current"]["temp_c"] == 12.0
+
+
+def test_fetch_keeps_the_last_forecast_when_both_providers_fail(frozen_now):
+    svc, _ = _service_with_providers([], RuntimeError("no route"))
+    svc._forecast = {"provider": "dmi", "current": {"temp_c": 14.3}}
+    assert asyncio.run(svc._fetch_forecast()) is False
+    assert svc._forecast == {"provider": "dmi", "current": {"temp_c": 14.3}}
