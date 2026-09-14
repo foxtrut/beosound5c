@@ -129,6 +129,44 @@ def test_parse_volume_percent():
     assert bts.parse_volume_percent("") is None
 
 
+def test_is_audio_sink_by_le_appearance():
+    speaker = bts.parse_info("Device 11:22:33:44:55:66 (random)\n\tName: Sonos Roam\n\tAppearance: 0x0841\n")
+    assert speaker["appearance"] == 0x0841
+    assert bts.is_audio_sink(speaker)
+    watch = {"icon": "", "uuids": [], "class": None, "appearance": 0x00c1}
+    assert not bts.is_audio_sink(watch)
+
+
+def test_parse_controller():
+    show = ("Controller 2C:CF:67:00:11:22 (public)\n\tManufacturer: 0x0131 (305)\n"
+            "\tName: beosound5c\n\tPowered: no\n\tDiscovering: no\n")
+    assert bts.parse_controller(show) == {
+        "address": "2C:CF:67:00:11:22", "powered": False, "discovering": False}
+    assert bts.parse_controller(show.replace("Powered: no", "Powered: yes"))["powered"]
+    assert bts.parse_controller("No default controller available\n") is None
+    assert bts.parse_controller("") is None
+
+
+def test_scan_messages_keeps_errors_and_new_devices():
+    out = ("Discovery started\n"
+           "[CHG] Controller 2C:CF:67:00:11:22 Discovering: yes\n"
+           "[NEW] Device 00:11:22:33:44:55 Kanto YU4\n"
+           "[CHG] Device 00:11:22:33:44:55 RSSI: -60\n"
+           "[CHG] Device 5A:11:22:33:44:55 ManufacturerData Key: 0x004c\n"
+           "Failed to start discovery: org.bluez.Error.NotReady\n")
+    assert bts.scan_messages(out) == [
+        "Discovery started",
+        "[CHG] Controller 2C:CF:67:00:11:22 Discovering: yes",
+        "[NEW] Device 00:11:22:33:44:55 Kanto YU4",
+        "Failed to start discovery: org.bluez.Error.NotReady",
+    ]
+
+
+def test_describe():
+    assert bts.describe(bts.parse_info(SPEAKER_INFO)) == "icon=audio-card class=0x240414 a2dp-sink"
+    assert bts.describe(None) == "no info"
+
+
 # ── Adapter ───────────────────────────────────────────────────────────────
 
 class _FakeSpeaker:

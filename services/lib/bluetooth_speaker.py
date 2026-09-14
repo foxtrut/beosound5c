@@ -36,6 +36,12 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]|\x01|\x02")
 _AUDIO_SINK_UUID = "0000110b"
 # Class of Device major class "Audio/Video" (bits 8-12).
 _MAJOR_CLASS_AUDIO = 0x04
+# GAP Appearance categories (value >> 6) of LE-advertising speakers:
+# 0x21 Audio Sink (speaker, soundbar, ...), 0x25 Wearable Audio Device.
+_AUDIO_APPEARANCE_CATEGORIES = {0x21, 0x25}
+# bluetoothctl scan chatter that says nothing about why a scan found nothing.
+_SCAN_NOISE = ("RSSI", "ManufacturerData", "TxPower", "ServiceData",
+               "AdvertisingFlags", "UUIDs", "Key:", "Value:")
 
 
 def normalize_mac(mac) -> str:
@@ -72,7 +78,7 @@ def parse_info(output: str) -> dict | None:
     if "Device " not in text or "not available" in text:
         return None
     info = {"name": "", "paired": False, "trusted": False, "connected": False,
-            "icon": "", "uuids": [], "class": None}
+            "icon": "", "uuids": [], "class": None, "appearance": None}
     for line in text.splitlines():
         key, sep, value = line.strip().partition(":")
         if not sep:
@@ -88,12 +94,54 @@ def parse_info(output: str) -> dict | None:
             m = re.search(r"\(([0-9a-fA-F-]+)\)", value)
             if m:
                 info["uuids"].append(m.group(1).lower())
-        elif key == "Class":
+        elif key in ("Class", "Appearance"):
             try:
-                info["class"] = int(value.split()[0], 16)
+                info[key.lower()] = int(value.split()[0], 16)
             except (ValueError, IndexError):
                 pass
     return info
+
+
+def parse_controller(output: str) -> dict | None:
+    """``bluetoothctl show`` → {address, powered, discovering}, or None when
+    there is no controller."""
+    text = _clean(output)
+    m = re.search(r"Controller ((?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2})", text)
+    if not m or "No default controller" in text:
+        return None
+    flags = {}
+    for key in ("Powered", "Discovering"):
+        fm = re.search(rf"^\s*{key}:\s*(\w+)", text, re.MULTILINE)
+        flags[key.lower()] = bool(fm and fm.group(1).lower() == "yes")
+    return {"address": m.group(1).upper(), **flags}
+
+
+def scan_messages(output: str, limit: int = 30) -> list[str]:
+    """The lines of a ``bluetoothctl scan on`` run worth logging: errors,
+    discovery state and newly found devices, without per-packet chatter."""
+    lines = []
+    for line in _clean(output).splitlines():
+        line = line.strip()
+        if not line or any(noise in line for noise in _SCAN_NOISE):
+            continue
+        lines.append(line)
+    return lines[:limit]
+
+
+def describe(info: dict | None) -> str:
+    """Short summary of what a device reports, for the scan log."""
+    if not info:
+        return "no info"
+    parts = []
+    if info.get("icon"):
+        parts.append(f"icon={info['icon']}")
+    if info.get("class") is not None:
+        parts.append(f"class=0x{info['class']:06x}")
+    if info.get("appearance") is not None:
+        parts.append(f"appearance=0x{info['appearance']:04x}")
+    if any(u.startswith(_AUDIO_SINK_UUID) for u in info.get("uuids", [])):
+        parts.append("a2dp-sink")
+    return " ".join(parts) or "no type hints"
 
 
 def is_audio_sink(info: dict | None) -> bool:
@@ -106,7 +154,10 @@ def is_audio_sink(info: dict | None) -> bool:
     if any(u.startswith(_AUDIO_SINK_UUID) for u in info.get("uuids", [])):
         return True
     cls = info.get("class")
-    return cls is not None and (cls >> 8) & 0x1F == _MAJOR_CLASS_AUDIO
+    if cls is not None and (cls >> 8) & 0x1F == _MAJOR_CLASS_AUDIO:
+        return True
+    appearance = info.get("appearance")
+    return appearance is not None and appearance >> 6 in _AUDIO_APPEARANCE_CATEGORIES
 
 
 def find_bluez_sink(short_sinks: str, mac: str) -> str | None:
@@ -230,16 +281,33 @@ async def scan(seconds: float = 8, exclude: set[str] | None = None) -> list[dict
     """Discover for ``seconds`` (0 = don't), then list every audio sink BlueZ
     knows — freshly found and already paired — sorted paired-first."""
     seconds = int(min(max(float(seconds), 0), 20))
+    show, _ = await _run("bluetoothctl", "show")
+    controller = parse_controller(show)
+    if controller is None:
+        log.error("Bluetooth scan: no controller (%s)",
+                  " / ".join(scan_messages(show, 3)) or "bluetoothctl show was empty")
+        return []
+    log.info("Bluetooth scan: controller %s, powered=%s, %ds",
+             controller["address"], controller["powered"], seconds)
+    if not controller["powered"]:
+        out, _ = await _run("bluetoothctl", "power", "on")
+        log.info("Bluetooth scan: power on → %s", " / ".join(scan_messages(out, 3)))
     if seconds:
-        await _run("bluetoothctl", "--timeout", str(seconds), "scan", "on",
-                   timeout=seconds + 5)
+        out, rc = await _run("bluetoothctl", "--timeout", str(seconds), "scan", "on",
+                             timeout=seconds + 5)
+        for line in scan_messages(out):
+            log.info("Bluetooth scan: %s", line)
+        log.info("Bluetooth scan: bluetoothctl exited rc=%d", rc)
     exclude = {normalize_mac(m) for m in (exclude or set())}
     found = []
     for mac, name in await _devices():
         if mac in exclude:
             continue
         info = await BluetoothSpeaker(mac).info()
-        if not is_audio_sink(info):
+        audio = is_audio_sink(info)
+        log.info("Bluetooth scan: %s %r %s → %s", mac, name, describe(info),
+                 "speaker" if audio else "skipped")
+        if not audio:
             continue
         found.append({"mac": mac, "name": info["name"] or name,
                       "paired": info["paired"], "connected": info["connected"]})
