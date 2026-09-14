@@ -1,8 +1,9 @@
-"""Tests for the huskeliste service's HTTP surface: the phone page, the API,
+"""Tests for the to-do service's HTTP surface: the phone page, the API,
 and the guards that keep other web pages (and DNS rebinding) away from it."""
 from __future__ import annotations
 
 import asyncio
+import re
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,8 @@ import pytest_asyncio
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
-from sources.todo.service import TodoService
+import sources.todo.service as service_module
+from sources.todo.service import TodoService, page_language
 from todo_security import HostPolicy, hostname_of
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -237,3 +239,57 @@ def test_host_policy_rereads_addresses_when_due(monkeypatch):
     assert policy.refresh_due()
     policy.refresh()
     assert policy.knows("10.0.0.5:8793")
+
+
+# ── Language ─────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("configured, accept, expected", [
+    ("da", "en-US,en;q=0.9", "da"),       # device setting wins
+    ("en", "da-DK,da;q=0.9", "en"),
+    ("auto", "da-DK,da;q=0.9,en;q=0.8", "da"),   # auto follows the phone
+    ("auto", "sv-SE,sv;q=0.9,en;q=0.8", "en"),
+    ("auto", "", "en"),
+    (None, "da", "da"),
+    ("fr", "fr-FR", "en"),                # no French strings: English
+])
+def test_page_language(configured, accept, expected):
+    assert page_language(configured, accept) == expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("configured, accept, expected", [
+    ("da", "en-US", "da"), ("en", "da-DK", "en"), ("auto", "da-DK", "da"),
+])
+async def test_phone_page_is_served_in_the_right_language(client, monkeypatch,
+                                                          configured, accept, expected):
+    monkeypatch.setattr(service_module, "cfg",
+                        lambda *keys, default=None: configured if keys == ("language",) else default)
+    resp = await client.get("/", headers={"Accept-Language": accept, "Origin": "http://localhost"})
+    html = await resp.text()
+    assert f'<html lang="{expected}">' in html
+    assert resp.headers["Content-Language"] == expected
+    vary = resp.headers["Vary"]
+    assert "Accept-Language" in vary and "Origin" in vary
+
+
+@pytest.mark.asyncio
+async def test_errors_are_codes_for_the_page_to_translate(client):
+    assert await (await _add(client, "   ")).json() == {"error": "empty"}
+    assert await (await _add(client, "x" * 121)).json() == {"error": "too_long"}
+    resp = await client.patch("/api/items/" + "f" * 32, json={"done": True})
+    assert await resp.json() == {"error": "not_found"}
+    assert await (await _add(client, "x", Origin="https://evil.example")).json() == {"error": "cross_origin"}
+
+
+def test_every_error_the_page_shows_is_translated_in_both_languages():
+    js = (REPO_ROOT / "services/sources/todo/phone/app.js").read_text()
+    blocks = re.findall(r"errors: \{(.*?)\n\s*\},", js, re.DOTALL)
+    assert len(blocks) == 2, "expected an errors table for en and da"
+    for code in ("missing", "empty", "too_long", "full", "not_found", "save_failed"):
+        for block in blocks:
+            assert re.search(rf"\b{code}: ", block), code
+
+
+def test_arc_view_has_both_languages():
+    page = (REPO_ROOT / "web/softarc/todo.html").read_text()
+    assert "en: { clearDone:" in page and "da: { clearDone:" in page

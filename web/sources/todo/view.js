@@ -1,5 +1,5 @@
 /**
- * Huskeliste Source Preset — iframe-based ArcList V2 list with tick-off
+ * To-do Source Preset (HUSKELISTE in Danish) — iframe-based ArcList V2 list with tick-off
  *
  * Shows the to-do list from beo-source-todo (port 8793) via softarc/todo.html.
  * The service broadcasts "todo_update" whenever a phone changes the list, and
@@ -33,10 +33,10 @@ const _todoController = (() => {
 window.SourcePresets = window.SourcePresets || {};
 window.SourcePresets.todo = {
     controller: _todoController,
-    item: { title: 'HUSKELISTE', path: 'menu/todo' },
+    item: { title: 'TO-DO', path: 'menu/todo' },
     after: 'menu/playing',
     view: {
-        title: 'HUSKELISTE',
+        title: 'TO-DO',
         content: '<div id="todo-container" style="width:100%;height:100%;"></div>'
     },
 

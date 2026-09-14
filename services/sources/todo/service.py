@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """
-BeoSound 5c — Huskeliste: a shopping / to-do list with tick-off.
+BeoSound 5c — To-do list with tick-off (TO-DO on the arc, HUSKELISTE in Danish).
 
 The list is edited from a phone, on a small web page this service serves at
-http://<device>:8793/, and shown on the arc under HUSKELISTE, where GO ticks
-an item off and "Ryd afkrydsede" removes the ticked ones.
+http://<device>:8793/, and shown on the arc under TO-DO, where GO ticks an
+item off and "Clear ticked" removes the ticked ones.
+
+Both the page and the arc view follow the device's "language" setting; with
+"auto" the page follows the phone's own language (Accept-Language), just as
+the arc view follows the browser's. The API answers errors with short codes
+that the page translates.
 
 Like every other service on the device the page has no login, so it is meant
 for the home network only — do not port-forward 8793. What it does guard
@@ -38,6 +43,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "..", ".."))
 sys.path.insert(0, HERE)
 
+from lib.config import cfg  # noqa: E402
 from lib.source_base import SourceBase  # noqa: E402
 from todo_security import PAGE_CSP, HostPolicy, apply_security_headers  # noqa: E402
 from todo_store import NotFound, TodoError, TodoStore  # noqa: E402
@@ -58,35 +64,52 @@ PHONE_ASSETS = {
 }
 MAX_BODY_BYTES = 2048
 
+SUPPORTED_LANGUAGES = ("da", "en")
+_PAGE_LANG_MARKER = b'<html lang="en">'
+
+
+def page_language(configured, accept_language: str) -> str:
+    """Language for the phone page: the device setting when it names one the
+    page has, otherwise the phone's first supported preference, otherwise
+    English — the same rule the arc views apply with navigator.language."""
+    configured = str(configured or "auto").lower()
+    if configured in SUPPORTED_LANGUAGES:
+        return configured
+    for part in (accept_language or "").split(","):
+        tag = part.split(";", 1)[0].strip().lower().split("-", 1)[0]
+        if tag in SUPPORTED_LANGUAGES:
+            return tag
+    return "en"
+
 
 class ApiError(Exception):
-    def __init__(self, status: int, message: str):
-        super().__init__(message)
+    def __init__(self, status: int, code: str):
+        super().__init__(code)
         self.status = status
-        self.message = message
+        self.code = code
 
 
 def _api(handler):
-    """Turn expected failures into short JSON errors without internals."""
+    """Turn expected failures into short JSON error codes without internals."""
     @functools.wraps(handler)
     async def wrapper(self, request):
         try:
             return await handler(self, request)
         except ApiError as e:
-            return web.json_response({"error": e.message}, status=e.status)
+            return web.json_response({"error": e.code}, status=e.status)
         except TodoError as e:
             return web.json_response({"error": str(e)}, status=400)
         except NotFound:
-            return web.json_response({"error": "Punktet findes ikke længere"}, status=404)
+            return web.json_response({"error": "not_found"}, status=404)
         except OSError:
             log.exception("Could not save the list")
-            return web.json_response({"error": "Kunne ikke gemme listen"}, status=500)
+            return web.json_response({"error": "save_failed"}, status=500)
     return wrapper
 
 
 class TodoService(SourceBase):
     id = "todo"
-    name = "Huskeliste"
+    name = "To-do"
     port = 8793
     player = "local"
     action_map = {
@@ -106,10 +129,12 @@ class TodoService(SourceBase):
         for route, (filename, content_type) in PHONE_ASSETS.items():
             with open(os.path.join(PHONE_DIR, filename), "rb") as f:
                 self._assets[route] = (f.read(), content_type)
+        if _PAGE_LANG_MARKER not in self._assets["/"][0]:
+            raise RuntimeError(f"phone/index.html must start with {_PAGE_LANG_MARKER!r}")
 
     async def on_start(self):
         count = len(self._store.snapshot()["items"])
-        log.info("Huskeliste with %d item(s); phone page on port %d", count, self.port)
+        log.info("To-do list with %d item(s); phone page on port %d", count, self.port)
         await self.register("available")
 
     # ── Routes ──
@@ -135,13 +160,13 @@ class TodoService(SourceBase):
                 await asyncio.to_thread(hosts.refresh)
             if not hosts.knows(host):
                 log.warning("Rejected %s %s: unknown Host %r", request.method, request.path, host)
-                return self._reject("Ukendt værtsnavn")
+                return self._reject("unknown_host")
 
             origin = request.headers.get("Origin", "").strip()
             if not hosts.origin_ok(origin):
                 log.warning("Rejected %s %s: cross-site Origin %r",
                             request.method, request.path, origin)
-                return self._reject("Forespørgsel fra en anden side afvist")
+                return self._reject("cross_origin")
 
             try:
                 response = await handler(request)
@@ -154,16 +179,25 @@ class TodoService(SourceBase):
         return guard
 
     @staticmethod
-    def _reject(message: str):
-        response = web.json_response({"error": message}, status=403)
+    def _reject(code: str):
+        response = web.json_response({"error": code}, status=403)
         apply_security_headers(response, "")
         return response
 
     async def _handle_asset(self, request):
         body, content_type = self._assets[request.path]
+        headers = {
+            "Content-Security-Policy": PAGE_CSP,
+            "X-Frame-Options": "DENY",
+        }
+        if request.path == "/":
+            lang = page_language(cfg("language", default="auto"),
+                                 request.headers.get("Accept-Language", ""))
+            body = body.replace(_PAGE_LANG_MARKER, f'<html lang="{lang}">'.encode(), 1)
+            headers["Content-Language"] = lang
+            headers["Vary"] = "Accept-Language"
         response = web.Response(body=body, content_type=content_type, charset="utf-8")
-        response.headers["Content-Security-Policy"] = PAGE_CSP
-        response.headers["X-Frame-Options"] = "DENY"
+        response.headers.update(headers)
         return response
 
     async def _handle_preflight(self, request):
@@ -212,21 +246,21 @@ class TodoService(SourceBase):
     @staticmethod
     async def _read_json(request, allowed: set[str]) -> dict:
         if request.content_type != "application/json":
-            raise ApiError(415, "Forventede JSON")
+            raise ApiError(415, "not_json")
         length = request.content_length
         if length is None:
-            raise ApiError(411, "Mangler Content-Length")
+            raise ApiError(411, "length_required")
         if length > MAX_BODY_BYTES:
-            raise ApiError(413, "Forespørgslen er for stor")
+            raise ApiError(413, "too_large")
         try:
             raw = await request.content.readexactly(length)
             data = json.loads(raw.decode("utf-8"))
         except (asyncio.IncompleteReadError, UnicodeDecodeError, ValueError):
-            raise ApiError(400, "Ugyldig JSON") from None
+            raise ApiError(400, "invalid_json") from None
         if not isinstance(data, dict):
-            raise ApiError(400, "Ugyldig JSON")
+            raise ApiError(400, "invalid_json")
         if set(data) - allowed:
-            raise ApiError(400, "Ukendte felter")
+            raise ApiError(400, "unknown_fields")
         return data
 
     def _changed(self, version: int) -> None:

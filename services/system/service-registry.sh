@@ -94,7 +94,7 @@ SERVICE_DESC["beo-source-jellyfin.service"]="Jellyfin Source (Port 8781)"
 SERVICE_DESC["beo-source-news.service"]="News Source (Port 8776)"
 SERVICE_DESC["beo-source-radio.service"]="Radio Source (Port 8779)"
 SERVICE_DESC["beo-source-airplay.service"]="AirPlay Source (Port 8782)"
-SERVICE_DESC["beo-source-todo.service"]="Huskeliste Source (Port 8793)"
+SERVICE_DESC["beo-source-todo.service"]="To-do Source (Port 8793)"
 SERVICE_DESC["beo-ui.service"]="Chromium UI Kiosk"
 
 # Optional sources: menu_key|service|emoji|label
@@ -110,5 +110,5 @@ OPTIONAL_SOURCES=(
     "NEWS|beo-source-news.service|📰|News source"
     "RADIO|beo-source-radio.service|📻|Radio Browser source"
     "AIRPLAY|beo-source-airplay.service|📶|AirPlay source"
-    "HUSKELISTE|beo-source-todo.service|📝|Huskeliste (to-do list) source"
+    "TO-DO|beo-source-todo.service|📝|To-do list source"
 )

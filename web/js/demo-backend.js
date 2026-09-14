@@ -64,7 +64,7 @@
             { id: 'jellyfin', title: 'JELLYFIN', preset: 'jellyfin', dynamic: true },
             { id: 'radio', title: 'RADIO', preset: 'radio', dynamic: true },
             { id: 'airplay', title: 'AIRPLAY', preset: 'airplay', dynamic: true },
-            { id: 'todo', title: 'HUSKELISTE', preset: 'todo', dynamic: true },
+            { id: 'todo', title: 'TO-DO', preset: 'todo', dynamic: true },
             { id: 'scenes', title: 'SCENES' },
             { id: 'security', title: 'SECURITY', type: 'webpage',
               url: 'softarc/security.html' },

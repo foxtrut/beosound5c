@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="da">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Huskeliste - Beosound 5c</title>
+    <title>To-do - Beosound 5c</title>
 
     <!-- Favicons -->
     <link rel="icon" type="image/x-icon" href="../assets/favicons/favicon.ico">
@@ -43,12 +43,27 @@
         const CLEAR_DONE_ID = 'todo-clear-done';
         const EMPTY_ID = 'todo-empty';
 
+        const TODO_STRINGS = {
+            en: { clearDone: 'Clear ticked', empty: 'The list is empty' },
+            da: { clearDone: 'Ryd afkrydsede', empty: 'Listen er tom' },
+        };
+
+        function todoText(key) {
+            // An explicit device setting (config.json's "language") wins over the
+            // browser's own locale when set to anything but "auto"/unset — same
+            // rule as the weather and calendar views.
+            const override = window.AppConfig?.language;
+            const lang = ((override && override !== 'auto') ? override : navigator.language || 'en')
+                .toLowerCase().split('-')[0];
+            return (TODO_STRINGS[lang] || TODO_STRINGS.en)[key];
+        }
+
         function mapTodo(raw) {
             if (raw.id === CLEAR_DONE_ID) {
-                return { id: raw.id, name: 'Ryd afkrydsede', icon: 'broom', color: '#c55', actionable: true };
+                return { id: raw.id, name: todoText('clearDone'), icon: 'broom', color: '#c55', actionable: true };
             }
             if (raw.id === EMPTY_ID) {
-                return { id: raw.id, name: 'Listen er tom', icon: 'list-checks', color: '#777', actionable: false };
+                return { id: raw.id, name: todoText('empty'), icon: 'list-checks', color: '#777', actionable: false };
             }
             // name is rendered with textContent by ArcList — never as HTML.
             // The arc id carries the item's state: ArcList only moves elements

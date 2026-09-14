@@ -194,7 +194,7 @@ def build() -> dict[str, object]:
     # No stick inserted — the empty browse envelope a device would return.
     files["usb_browse.json"] = {"path": "", "parent": None, "name": "USB", "items": []}
 
-    # Huskeliste — the /api/items envelope, open items first like the service.
+    # To-do list — the /api/items envelope, open items first like the service.
     files["todo_items.json"] = {"version": 12, "items": [
         {"id": f"{n:032x}", "text": text, "done": done}
         for n, (text, done) in enumerate([
