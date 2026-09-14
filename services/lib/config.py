@@ -132,6 +132,22 @@ def _validate(config: dict, path: str) -> list[str]:
                 path,
             )
 
+    # ── Warning: weather source requires a configured location ──
+    # Same not-fatal-at-router-level reasoning as the news check above:
+    # beo-source-weather refuses to start via its own guard.
+    has_weather = any(
+        (v == "weather") or (isinstance(v, dict) and v.get("id") == "weather")
+        for v in menu.values()
+    )
+    if has_weather:
+        weather_cfg = config.get("weather") or {}
+        if not weather_cfg.get("latitude") or not weather_cfg.get("longitude"):
+            logger.error(
+                "Config %s: WEATHER source in menu but no weather.latitude/"
+                "longitude — beo-source-weather will refuse to start",
+                path,
+            )
+
     return errors
 
 

@@ -62,6 +62,7 @@
             { id: 'tidal', title: 'TIDAL', preset: 'tidal', dynamic: true },
             { id: 'plex', title: 'PLEX', preset: 'plex', dynamic: true },
             { id: 'jellyfin', title: 'JELLYFIN', preset: 'jellyfin', dynamic: true },
+            { id: 'weather', title: 'WEATHER', preset: 'weather', dynamic: true },
             { id: 'radio', title: 'RADIO', preset: 'radio', dynamic: true },
             { id: 'airplay', title: 'AIRPLAY', preset: 'airplay', dynamic: true },
             { id: 'scenes', title: 'SCENES' },
@@ -154,6 +155,7 @@
         '8773': 'usb',
         '8774': 'apple_music',
         '8776': 'news',
+        '8790': 'weather',
         '8777': 'tidal',
         '8778': 'plex',
         '8781': 'jellyfin',
@@ -173,6 +175,7 @@
         jellyfin:    { '/playlists': 'jellyfin_playlists.json' },
         radio:       { '/browse': 'radio_browse.json', '/favourites': 'radio_favourites.json' },
         news:        { '/articles': 'news_articles.json' },
+        weather:     { '/forecast': 'weather_forecast.json' },
         usb:         { '/browse': 'usb_browse.json' },
         // Idle is the state worth demoing: it is what the AIRPLAY view shows
         // until someone picks the BeoSound on a phone, and it cannot be
@@ -193,6 +196,24 @@
         'digit_playlists.json': 'digit_playlists.json',
         'scenes.json': 'scenes.json',
     };
+
+    // weather_forecast.json ships with fixed clock times (14:00-19:00) so the
+    // committed fixture stays stable for gen-demo-data.py's --check. Relabel
+    // them to start at the real current hour when serving, so the demo looks
+    // live instead of showing hours that have already passed.
+    function _relativizeWeatherDemo(data) {
+        const now = new Date();
+        data.today = data.today || {};
+        data.today.date = now.toISOString().slice(0, 10);
+        data.updated = Math.floor(now.getTime() / 1000);
+        if (Array.isArray(data.hourly)) {
+            const startHour = now.getHours();
+            data.hourly = data.hourly.map((h, i) => (
+                { ...h, time: `${String((startHour + i) % 24).padStart(2, '0')}:00` }
+            ));
+        }
+        return data;
+    }
 
     function jsonResponse(body, status = 200) {
         return new Response(JSON.stringify(body), {
@@ -301,6 +322,9 @@
             if (file) {
                 return realFetch(ROOT + DEMO_JSON + file, init).then(async r => {
                     if (!r.ok) return jsonResponse([]);
+                    if (file === 'weather_forecast.json') {
+                        return jsonResponse(_relativizeWeatherDemo(await r.json()));
+                    }
                     if (!KEYED_BY_PATH.has(file)) return r;
                     // Browse endpoints take a ?path= and return that level.
                     const levels = await r.json();
