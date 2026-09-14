@@ -25,6 +25,13 @@
       "examples": ["Living Room", "Kitchen", "Church"]
     },
 
+    "language": {
+      "type": "string",
+      "enum": ["auto", "en", "da"],
+      "default": "auto",
+      "description": "UI language override. 'auto' follows the browser/Chromium locale. 'da' forces Danish for the arc menu labels and any page with a Danish translation table (currently Weather, Calendar); pages without one stay in English regardless of this setting."
+    },
+
     "menu": {
       "type": "object",
       "description": "Menu items shown on the main arc. Keys are display labels (uppercase), values are source IDs or source config objects. Order determines arc order. Two views are left out of the default install because they only do something with a matching Home Assistant setup: \"SHOWING\": \"showing\" (what is playing on an Apple TV — needs showing.entity_id) and \"SECURITY\": {\"url\": \"softarc/security.html\"} (camera snapshots — needs security.cameras). Add either by hand once configured.",
