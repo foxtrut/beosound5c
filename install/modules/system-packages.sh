@@ -55,8 +55,13 @@ install_system_packages() {
         plymouth-themes
 
     log_info "Installing audio/TTS packages..."
+    # pulseaudio-utils: pactl (audio outputs, Bluetooth speaker routing/volume).
+    # libspa-0.2-bluetooth: PipeWire A2DP sinks — also installed from backports
+    # below, but that step fails where backports carries no PipeWire.
     apt-get install -y \
-        espeak-ng
+        espeak-ng \
+        pulseaudio-utils \
+        libspa-0.2-bluetooth
 
     # Tailscale is NOT installed here. Remote support is a thing you opt into,
     # not something every device should carry a daemon for — `bs5c-support`
