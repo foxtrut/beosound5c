@@ -36,8 +36,12 @@ def frozen_now(monkeypatch):
 
 
 def _step(hour, temp_c, cum_mm=0.0, cloud_pct=50):
+    return _step_at(real_datetime.datetime(2026, 9, 13, hour, tzinfo=TZ), temp_c, cum_mm, cloud_pct)
+
+
+def _step_at(dt, temp_c, cum_mm=0.0, cloud_pct=50):
     return {
-        "time": real_datetime.datetime(2026, 9, 13, hour, tzinfo=TZ),
+        "time": dt,
         "temp_c": temp_c,
         "precip_cum_mm": cum_mm,
         "cloud_pct": cloud_pct,
@@ -86,6 +90,34 @@ def test_no_rain_when_precipitation_never_accumulates(frozen_now):
     summary = svc._build_summary(steps)
     assert summary["today"]["will_rain"] is False
     assert summary["today"]["rain_mm"] == 0.0
+
+
+def test_hourly_list_has_a_fixed_length_spanning_past_midnight(monkeypatch):
+    """Regression: hourly used to be capped to "whatever's left of today",
+    so in the evening it shrank to almost nothing — and DMI vs. Open-Meteo,
+    which can return different total step counts, visibly disagreed on how
+    many hours to show as a result. It's now a fixed lookahead (HOURLY_COUNT)
+    regardless of the calendar-day boundary or which provider answered."""
+    class _LateNight(real_datetime.datetime):
+        _frozen = real_datetime.datetime(2026, 9, 13, 22, 30, tzinfo=TZ)
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls._frozen.astimezone(tz) if tz else cls._frozen
+    monkeypatch.setattr("sources.weather.datetime", _LateNight)
+
+    start = real_datetime.datetime(2026, 9, 13, 22, tzinfo=TZ)
+    steps = [_step_at(start + real_datetime.timedelta(hours=h), 10.0 + h) for h in range(15)]
+
+    from sources.weather import HOURLY_COUNT
+    summary = WeatherService()._build_summary(steps)
+    assert len(summary["hourly"]) == HOURLY_COUNT
+    assert summary["hourly"][0]["time"] == "22:00"
+    assert summary["hourly"][-1]["time"] == "07:00"  # crosses into the next day
+    # "Today"'s own summary stays scoped to the calendar day (22:00, 23:00
+    # only) — only the hourly list's cutoff changed.
+    assert summary["today"]["temp_min_c"] == 10.0
+    assert summary["today"]["temp_max_c"] == 11.0
 
 
 @pytest.mark.parametrize("kelvin,celsius", [(273.15, 0.0), (287.3, 14.2), (300.0, 26.9)])
