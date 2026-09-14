@@ -69,6 +69,20 @@ INPUT_WEBHOOK_URL = INPUT_WEBHOOK
 # Static menu IDs — these are built-in views (not dynamic sources)
 STATIC_VIEWS = {"showing", "system", "scenes", "playing"}
 
+# Arc menu label overrides, keyed by config.json's top-level "language"
+# (default "auto" — follows the browser/Chromium locale, no override here).
+# Keyed by source id, not by the config-file title, since config.json's menu
+# keys are themselves the display strings (see _parse_menu). Proper nouns
+# (SPOTIFY, TIDAL, CD, USB, RADIO, SYSTEM, AIRPLAY…) read the same in Danish,
+# so they're simply absent here and fall back to the configured title.
+MENU_LABELS = {
+    "da": {
+        "playing": "AFSPILNING", "join": "HØJTTALERE", "news": "NYHEDER",
+        "scenes": "SCENER", "security": "SIKKERHED", "showing": "VISER",
+        "weather": "VEJR", "calendar": "KALENDER",
+    },
+}
+
 # Player types whose speakers can group/target other rooms — these surface the
 # SPEAKERS menu entry. Local/powerlink produce audio on-device and never do.
 # Must stay in sync with players that return supports_grouping() → True; add
@@ -149,6 +163,11 @@ class EventRouter:
             join_entry = {"id": "join", "title": "SPEAKERS", "config": {}}
             playing_idx = next((i for i, e in enumerate(items) if e["id"] == "playing"), -1)
             items.insert(playing_idx + 1, join_entry)
+
+        labels = MENU_LABELS.get(str(cfg("language", default="auto")).lower(), {})
+        for item in items:
+            if item["id"] in labels:
+                item["title"] = labels[item["id"]]
 
         for item in items:
             if "url" in item["config"]:

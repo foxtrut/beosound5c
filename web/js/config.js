@@ -5,6 +5,11 @@ const AppConfig = {
     // Device identification (overridden by json/config.json on deployed devices)
     deviceName: 'development',
 
+    // UI language override ('auto' follows the browser/Chromium locale).
+    // Views that have a translation table (see weather/calendar view.js)
+    // read this instead of navigator.language when it's not 'auto'.
+    language: 'auto',
+
     // Legacy fallback for scenes (only used if config.json has no scenes array)
     scenesFile: '../json/scenes.example.json',
 
@@ -83,6 +88,7 @@ const AppConfig = {
 (function() {
     function applyConfig(config) {
         if (config.device) AppConfig.deviceName = config.device;
+        if (config.language) AppConfig.language = config.language;
         if (config.scenes) AppConfig.scenes = config.scenes;
         if (config.home_assistant) {
             if (config.home_assistant.url) AppConfig.homeAssistant.url = config.home_assistant.url;

@@ -463,6 +463,16 @@ function renderDevice(cfg) {
         <h2>Device</h2>
         <label for="cfg-device">Device name</label>
         <input id="cfg-device" type="text" value="${esc(cfg.device)}" placeholder="e.g. Living Room">
+        <label for="cfg-language" style="margin-top:14px">Language</label>
+        <select id="cfg-language">
+            <option value="auto" ${(!cfg.language || cfg.language==='auto')?'selected':''}>Automatic (browser/system)</option>
+            <option value="en" ${cfg.language==='en'?'selected':''}>English</option>
+            <option value="da" ${cfg.language==='da'?'selected':''}>Dansk</option>
+        </select>
+        <div style="font-size:12px;color:#555;margin-top:6px;line-height:1.5">
+            Overrides the browser's own language for the arc menu and any page with a
+            translation (currently Weather, Calendar). Pages without one stay in English.
+        </div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:14px">
             <input id="cfg-telemetry" type="checkbox" checked onchange="_telemetryLoaded=true"
                    style="width:20px;height:20px;accent-color:#0af;cursor:pointer;flex-shrink:0">
@@ -1816,6 +1826,7 @@ async function testHAConn(event) {
 function buildConfig() {
     const cfg = JSON.parse(JSON.stringify(_cfg || {}));
     cfg.device = document.getElementById('cfg-device')?.value || cfg.device;
+    cfg.language = document.getElementById('cfg-language')?.value || cfg.language || 'auto';
     if (_telemetryLoaded) {
         cfg._telemetry = !!document.getElementById('cfg-telemetry')?.checked;
     }
