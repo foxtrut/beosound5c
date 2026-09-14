@@ -147,8 +147,13 @@ class MenuManager {
                         newItems.push({ title: item.title, path, dynamic: true });
                     }
                 } else {
-                    const existing = this.menuItems.find(m => m.path === path);
-                    newItems.push(existing || { title: item.title, path });
+                    // Always take the fresh title from the router response —
+                    // static items (playing/scenes/system/showing) used to
+                    // keep whatever title they were first constructed with
+                    // (the hardcoded English default), so a language change
+                    // that translates their title server-side never showed
+                    // up here even though every other menu item updated.
+                    newItems.push({ title: item.title, path });
                 }
             }
             this.menuItems = newItems;
