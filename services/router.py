@@ -77,7 +77,7 @@ STATIC_VIEWS = {"showing", "system", "scenes", "playing"}
 # so they're simply absent here and fall back to the configured title.
 MENU_LABELS = {
     "da": {
-        "playing": "AFSPILNING", "join": "HØJTTALERE", "news": "NYHEDER",
+        "playing": "AFSPILLER", "join": "HØJTTALERE", "news": "NYHEDER",
         "scenes": "SCENER", "security": "SIKKERHED", "showing": "VISER",
         "weather": "VEJR", "calendar": "KALENDER",
     },
