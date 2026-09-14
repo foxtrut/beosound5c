@@ -29,6 +29,7 @@ import time
 log = logging.getLogger(__name__)
 
 TONE_OUTPUT_NODE = "beo_tone_sink.output"
+PAIR_BUSY_RETRY_S = 5
 
 _MAC_RE = re.compile(r"^([0-9A-F]{2}:){5}[0-9A-F]{2}$")
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]|\x01|\x02")
@@ -77,8 +78,9 @@ def parse_info(output: str) -> dict | None:
     text = _clean(output)
     if "Device " not in text or "not available" in text:
         return None
-    info = {"name": "", "paired": False, "trusted": False, "connected": False,
-            "icon": "", "uuids": [], "class": None, "appearance": None}
+    info = {"name": "", "paired": False, "bonded": None, "trusted": False,
+            "connected": False, "icon": "", "uuids": [], "class": None,
+            "appearance": None}
     for line in text.splitlines():
         key, sep, value = line.strip().partition(":")
         if not sep:
@@ -86,7 +88,7 @@ def parse_info(output: str) -> dict | None:
         value = value.strip()
         if key in ("Name", "Alias") and not info["name"]:
             info["name"] = value
-        elif key in ("Paired", "Trusted", "Connected"):
+        elif key in ("Paired", "Bonded", "Trusted", "Connected"):
             info[key.lower()] = value.lower().startswith("yes")
         elif key == "Icon":
             info["icon"] = value
@@ -99,6 +101,9 @@ def parse_info(output: str) -> dict | None:
                 info[key.lower()] = int(value.split()[0], 16)
             except (ValueError, IndexError):
                 pass
+    if info["bonded"] is None:
+        # BlueZ before 5.66 has no Bonded property; a pairing was a bond.
+        info["bonded"] = info["paired"]
     return info
 
 
@@ -337,45 +342,72 @@ async def scan(seconds: float = 8, exclude: set[str] | None = None) -> list[dict
         if not audio:
             continue
         found.append({"mac": mac, "name": info["name"] or name,
-                      "paired": info["paired"], "connected": info["connected"]})
+                      "paired": info["bonded"], "connected": info["connected"]})
     found.sort(key=lambda d: (not d["paired"], d["name"].lower()))
     return found
 
 
+async def _rediscover(speaker: "BluetoothSpeaker", seconds: int = 15) -> dict | None:
+    """Scan until BlueZ knows ``speaker`` again (it forgets unpaired devices
+    ~30s after a scan, and after ``remove``). Returns its info or None."""
+    scanner = await asyncio.create_subprocess_exec(
+        "bluetoothctl", "--timeout", str(seconds), "scan", "bredr",
+        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+    deadline = time.monotonic() + seconds
+    info = None
+    try:
+        while info is None and time.monotonic() < deadline:
+            await asyncio.sleep(1)
+            info = await speaker.info()
+    finally:
+        if scanner.returncode is None:
+            scanner.kill()
+        await scanner.wait()
+    return info
+
+
 async def pair(mac: str) -> tuple[bool, str]:
-    """Pair, trust and connect a speaker in pairing mode."""
+    """Pair with bonding, trust and connect a speaker in pairing mode."""
     speaker = BluetoothSpeaker(mac)
     if not speaker.mac:
         return False, "Invalid MAC address"
 
+    # An adapter that isn't pairable isn't bondable either: pairing then
+    # succeeds without storing a link key (Paired: yes, Bonded: no), and the
+    # first disconnect — standby — loses the pairing for good. bluetoothd
+    # starts non-pairable unless main.conf says AlwaysPairable.
+    await _run("bluetoothctl", "pairable", "on")
+
     info = await speaker.info()
+    if info and info["paired"] and not info["bonded"]:
+        # No stored key to upgrade (e.g. a connect while the speaker was in
+        # pairing mode paired it just for that connection) — start over.
+        log.info("Bluetooth speaker %s paired without bonding — pairing again", speaker.mac)
+        await _run("bluetoothctl", "remove", speaker.mac)
+        info = None
     if info is None:
-        # BlueZ forgets unpaired devices ~30s after a scan — look again.
-        scanner = await asyncio.create_subprocess_exec(
-            "bluetoothctl", "--timeout", "15", "scan", "on",
-            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
-        deadline = time.monotonic() + 15
-        try:
-            while info is None and time.monotonic() < deadline:
-                await asyncio.sleep(1)
-                info = await speaker.info()
-        finally:
-            if scanner.returncode is None:
-                scanner.kill()
-            await scanner.wait()
+        info = await _rediscover(speaker)
         if info is None:
             return False, "Speaker not found — is it in pairing mode?"
 
-    if not info["paired"]:
-        out, _ = await _run("bluetoothctl", "--agent", "NoInputNoOutput",
-                            "pair", speaker.mac, timeout=40)
-        if "Pairing successful" not in out and "AlreadyExists" not in out:
-            info = await speaker.info()
-            if not (info and info["paired"]):
-                reason = re.search(r"Failed to pair: (\S+)", _clean(out))
-                return False, f"Pairing failed{': ' + reason.group(1) if reason else ''}"
+    if not info["bonded"]:
+        for attempt in range(3):
+            out, _ = await _run("bluetoothctl", "--agent", "NoInputNoOutput",
+                                "pair", speaker.mac, timeout=40)
+            # InProgress: a connect attempt (the output adapter's watch loop)
+            # holds the link — wait for it to give up, then pair.
+            if "InProgress" not in out:
+                break
+            log.info("Bluetooth pairing with %s busy — retrying", speaker.mac)
+            await asyncio.sleep(PAIR_BUSY_RETRY_S)
+        info = await speaker.info()
+        if not (info and info["paired"]):
+            reason = re.search(r"Failed to pair: (\S+)", _clean(out))
+            return False, f"Pairing failed{': ' + reason.group(1) if reason else ''}"
+        if not info["bonded"]:
+            return False, "Paired, but the speaker didn't store the pairing — try again"
     await _run("bluetoothctl", "trust", speaker.mac)
     if not await speaker.connect():
         return False, "Paired, but could not connect — try again"
-    log.info("Bluetooth speaker %s paired and connected", speaker.mac)
+    log.info("Bluetooth speaker %s paired (bonded) and connected", speaker.mac)
     return True, "Paired and connected"
