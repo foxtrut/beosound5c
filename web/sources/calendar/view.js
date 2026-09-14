@@ -39,7 +39,10 @@ const _CAL_STRINGS = {
 };
 
 function _calT(key, vars) {
-    let lang = (navigator.language || 'en').toLowerCase().split('-')[0];
+    // An explicit device setting (config.json's "language") wins over the
+    // browser's own locale when set to anything but "auto"/unset.
+    const override = window.AppConfig?.language;
+    let lang = ((override && override !== 'auto') ? override : navigator.language || 'en').toLowerCase().split('-')[0];
     if (lang === 'no' || lang === 'nn') lang = 'nb';
     let text = (_CAL_STRINGS[lang] || _CAL_STRINGS.en)[key];
     for (const [name, value] of Object.entries(vars || {})) {
