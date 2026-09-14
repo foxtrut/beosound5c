@@ -14,7 +14,8 @@
  *
  * UI strings follow the browser locale, same convention as the calendar
  * view: a small table for da/sv/nb/de, falling back to English. Numbers
- * (°, mm, m/s) and the hourly HH:MM times are locale-neutral already.
+ * (°, mm, m/s) and the hourly HH:MM times are locale-neutral already; the
+ * radar timestamp is 24-hour for every language but English.
  */
 
 let _weatherTimer = null;
@@ -88,17 +89,32 @@ const _WX_STRINGS = {
           now: 'Jetzt' },
 };
 
-function _wxT(key, vars) {
+function _wxLang() {
     // An explicit device setting (config.json's "language") wins over the
     // browser's own locale when set to anything but "auto"/unset.
     const override = window.AppConfig?.language;
     let lang = ((override && override !== 'auto') ? override : navigator.language || 'en').toLowerCase().split('-')[0];
     if (lang === 'no' || lang === 'nn') lang = 'nb';
-    let text = (_WX_STRINGS[lang] || _WX_STRINGS.en)[key];
+    return lang;
+}
+
+function _wxT(key, vars) {
+    let text = (_WX_STRINGS[_wxLang()] || _WX_STRINGS.en)[key];
     for (const [name, value] of Object.entries(vars || {})) {
         text = text.replace('{' + name + '}', () => value);
     }
     return text;
+}
+
+function _wxClock(date) {
+    // English keeps the browser's own clock (12h AM/PM on an en-US Chromium).
+    // Every other language gets 24-hour HH:MM, the same shape as the hourly
+    // list — toLocaleTimeString('da') would give "14.30", not "14:30".
+    if (_wxLang() === 'en') {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    const pad = n => String(n).padStart(2, '0');
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function _weatherUrl() {
@@ -285,8 +301,7 @@ function _weatherShowRadarFrame() {
     const label = document.getElementById('wx-radar-time');
     if (label) {
         const isNow = idx === _weatherRadarFrames.length - 1;
-        const timeStr = new Date(frame.time * 1000)
-            .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const timeStr = _wxClock(new Date(frame.time * 1000));
         label.textContent = isNow ? `${_wxT('now')} · ${timeStr}` : timeStr;
     }
 }
