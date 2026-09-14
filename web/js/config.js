@@ -46,6 +46,9 @@ const AppConfig = {
     // News source (Guardian)
     newsServiceUrl: 'http://localhost:8776',
 
+    // Huskeliste source (to-do list; phone page on the same port)
+    todoServiceUrl: 'http://localhost:8793',
+
     // Radio source (Radio Browser)
     radioServiceUrl: 'http://localhost:8779',
 

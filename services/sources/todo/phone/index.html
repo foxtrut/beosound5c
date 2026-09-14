@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#000000">
+    <title>Huskeliste</title>
+    <link rel="stylesheet" href="app.css">
+    <script src="app.js" defer></script>
+</head>
+<body>
+    <main>
+        <header>
+            <h1>Huskeliste</h1>
+            <p id="status" class="status" role="status" hidden></p>
+        </header>
+
+        <form id="add-form" autocomplete="off">
+            <label for="add-text" class="visually-hidden">Nyt punkt</label>
+            <input id="add-text" type="text" maxlength="120" placeholder="Tilføj punkt…"
+                   enterkeyhint="done" autocapitalize="sentences">
+            <button type="submit">Tilføj</button>
+        </form>
+
+        <ul id="items" class="items"></ul>
+        <p id="empty" class="empty" hidden>Listen er tom.</p>
+
+        <footer>
+            <button id="clear-done" type="button" class="secondary" hidden>Ryd afkrydsede</button>
+        </footer>
+    </main>
+</body>
+</html>
