@@ -164,7 +164,7 @@ class TestValidation:
 
     def test_no_warning_for_valid_volume_types(self, write_config, caplog):
         for vtype in ("beolab5", "sonos", "bluesound", "heos", "powerlink",
-                       "c4amp", "hdmi", "spdif", "rca"):
+                       "c4amp", "hdmi", "spdif", "rca", "bluetooth"):
             with caplog.at_level(logging.WARNING):
                 caplog.clear()
                 write_config({"device": "X", "menu": {"1": "a"},

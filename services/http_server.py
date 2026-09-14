@@ -18,7 +18,7 @@ from lib.endpoints import input_url  # noqa: E402
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
 
 # Paths proxied to beo-input (port 8767)
-_PROXY_PREFIXES = ('/config', '/update/', '/discover/', '/info')
+_PROXY_PREFIXES = ('/config', '/update/', '/discover/', '/info', '/bt/speakers')
 
 
 def _proxy_to_input(handler, method: str) -> bool:
@@ -37,7 +37,12 @@ def _proxy_to_input(handler, method: str) -> bool:
     # Device discovery (SSDP + subnet IP-scan fallback) can legitimately take
     # longer than a normal config call, so give /discover/ a wider window —
     # otherwise a slow-but-successful scan surfaces to the UI as a 502.
-    timeout = 30 if handler.path.startswith('/discover/') else 15
+    if handler.path.startswith('/bt/speakers'):
+        timeout = 100  # a scan, or pairing's rescan + pair + connect
+    elif handler.path.startswith('/discover/'):
+        timeout = 30
+    else:
+        timeout = 15
 
     # Pass the browser's Origin and the host it dialled through to beo-input.
     # Its mutating endpoints (POST /config, /update/run) reject cross-site

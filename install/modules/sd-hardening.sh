@@ -132,7 +132,17 @@ EOF
     # --- Disable WirePlumber Bluetooth audio monitor ---
     local WP_BT_OVERRIDE="$INSTALL_HOME/.config/wireplumber/bluetooth.lua.d"
     local WP_BT_SYSTEM="/usr/share/wireplumber/bluetooth.lua.d"
-    if [ -d "$WP_BT_SYSTEM" ]; then
+    # A Bluetooth speaker output needs the monitor — it creates the speaker's sink.
+    local VOLUME_TYPE
+    VOLUME_TYPE=$(jq -r '.volume.type // empty' /etc/beosound5c/config.json 2>/dev/null)
+    if [ "$VOLUME_TYPE" = "bluetooth" ]; then
+        if [ -f "$WP_BT_OVERRIDE/90-enable-all.lua" ]; then
+            rm -f "$WP_BT_OVERRIDE/90-enable-all.lua" "$WP_BT_OVERRIDE/00-functions.lua"
+            log_success "WirePlumber Bluetooth monitor re-enabled (Bluetooth speaker output)"
+        else
+            log_info "WirePlumber Bluetooth monitor left enabled (Bluetooth speaker output)"
+        fi
+    elif [ -d "$WP_BT_SYSTEM" ]; then
         if [ -f "$WP_BT_OVERRIDE/90-enable-all.lua" ] && grep -q "disabled" "$WP_BT_OVERRIDE/90-enable-all.lua" 2>/dev/null; then
             log_info "WirePlumber Bluetooth monitor already disabled"
         else

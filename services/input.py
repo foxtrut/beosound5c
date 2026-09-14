@@ -23,6 +23,7 @@ from lib.endpoints import (
 from lib.loop_monitor import LoopMonitor
 from lib.watchdog import watchdog_loop
 from lib.beacon import send_beacon
+from lib import bluetooth_speaker as bt_speaker
 
 logger = install_logging('beo-input')
 
@@ -2019,6 +2020,47 @@ async def handle_bt_remotes(request):
         response.headers['Access-Control-Allow-Origin'] = '*'
         return response
 
+async def handle_bt_speakers(request):
+    """GET /bt/speakers?scan=<seconds> — Bluetooth audio devices for the config
+    page, after an optional discovery window (0-20s). The paired BeoRemote is
+    left out."""
+    cors = _cors_headers(request)
+    try:
+        seconds = float(request.query.get('scan', 0))
+    except ValueError:
+        seconds = 0
+    try:
+        devices = await bt_speaker.scan(
+            seconds, exclude={cfg('bluetooth', 'remote_mac', default='')})
+        return web.json_response(devices, headers=cors)
+    except Exception as e:
+        logger.error('BT speaker scan error: %s', e)
+        return web.json_response({'error': str(e)}, status=500, headers=cors)
+
+
+async def handle_bt_speaker_pair(request):
+    """POST /bt/speakers/pair {"mac": ...} — pair, trust and connect a speaker
+    in pairing mode. Making it the output is left to POST /config."""
+    if not request_origin_ok(request):
+        return _forbidden_cross_origin(request, 'POST /bt/speakers/pair')
+
+    cors = _cors_headers(request)
+    if request.method == 'OPTIONS':
+        return web.Response(headers={
+            **cors,
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+        })
+
+    try:
+        body = await request.json()
+    except Exception:
+        body = None
+    mac = body.get('mac', '') if isinstance(body, dict) else ''
+    ok, message = await bt_speaker.pair(mac)
+    return web.json_response(
+        {'status': 'ok' if ok else 'error', 'message': message}, headers=cors)
+
 async def handler(ws, path=None):
     clients.add(ws)
     # Ask router to re-probe all sources so menu items are up-to-date for this new client
@@ -2353,6 +2395,9 @@ async def main():
     app.router.add_get('/led', handle_led)
     app.router.add_get('/bt/remotes', handle_bt_remotes)
     app.router.add_options('/bt/remotes', handle_bt_remotes)  # CORS preflight
+    app.router.add_get('/bt/speakers', handle_bt_speakers)
+    app.router.add_post('/bt/speakers/pair', handle_bt_speaker_pair)
+    app.router.add_options('/bt/speakers/pair', handle_bt_speaker_pair)
     app.router.add_get('/camera/stream', handle_camera_stream)
     app.router.add_get('/camera/snapshot', handle_camera_snapshot)
     app.router.add_get('/update/check', handle_update_check)
