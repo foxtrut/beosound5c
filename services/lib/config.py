@@ -148,6 +148,22 @@ def _validate(config: dict, path: str) -> list[str]:
                 path,
             )
 
+    # ── Warning: calendar source requires at least one iCal URL ──
+    # Same not-fatal-at-router-level reasoning as the checks above:
+    # beo-source-calendar refuses to start via its own guard.
+    has_calendar = any(
+        (v == "calendar") or (isinstance(v, dict) and v.get("id") == "calendar")
+        for v in menu.values()
+    )
+    if has_calendar:
+        cal_cfg = config.get("calendar") or {}
+        if not cal_cfg.get("url") and not cal_cfg.get("calendars"):
+            logger.error(
+                "Config %s: CALENDAR source in menu but no calendar.url — "
+                "beo-source-calendar will refuse to start",
+                path,
+            )
+
     return errors
 
 

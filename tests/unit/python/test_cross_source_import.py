@@ -36,6 +36,7 @@ SOURCE_MODULES = [
     "sources.radio.service",
     "sources.news",
     "sources.weather",
+    "sources.calendar_source.service",
     # sources.cd requires pyudev (Linux-only) — skipped conditionally below.
 ]
 

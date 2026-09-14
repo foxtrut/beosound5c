@@ -36,5 +36,8 @@ edge-tts>=6.1.0
 # test fails at collection with "No module named 'google'"
 protobuf>=6.0
 
+# Recurrence expansion for the calendar source
+python-dateutil>=2.8.2
+
 # Artwork handling
 pillow>=10.0.0

@@ -84,6 +84,8 @@ SYS_PATH_INSERT_BASELINE: dict[str, int] = {
     "lib/spotify_canvas.py": 1,
     "sources/news.py": 2,
     "sources/weather.py": 2,
+    # Own directory (for calendar_ics) + services/ — same pattern as usb.
+    "sources/calendar_source/service.py": 2,
     "sources/cd.py": 1,
     "sources/apple_music/fetch.py": 1,
     "sources/apple_music/service.py": 2,
