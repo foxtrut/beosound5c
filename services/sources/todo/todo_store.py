@@ -1,4 +1,4 @@
-"""Storage for the huskeliste (shopping / to-do list).
+"""Storage for the to-do list (TO-DO on the arc, HUSKELISTE in Danish).
 
 One small JSON file, rewritten atomically on every change: the new state goes
 to a private temp file in the same directory, is fsynced, and replaces the old
@@ -35,7 +35,8 @@ _BIDI_CONTROLS = frozenset(chr(c) for c in (*range(0x202A, 0x202F), *range(0x206
 
 
 class TodoError(ValueError):
-    """Rejected input. The message is Danish and safe to show on the phone."""
+    """Rejected input. ``str(error)`` is a short code (``"empty"``,
+    ``"too_long"``, ``"full"``…) that the phone page translates."""
 
 
 class NotFound(KeyError):
@@ -45,9 +46,9 @@ class NotFound(KeyError):
 def clean_text(raw) -> str:
     """Normalise an item's text, or raise :class:`TodoError`."""
     if not isinstance(raw, str):
-        raise TodoError("Teksten mangler")
+        raise TodoError("missing")
     if len(raw) > MAX_TEXT * 4:
-        raise TodoError(f"Teksten er for lang (højst {MAX_TEXT} tegn)")
+        raise TodoError("too_long")
     text = unicodedata.normalize("NFC", raw)
     text = "".join(
         " " if unicodedata.category(ch) == "Cc" else ch
@@ -55,9 +56,9 @@ def clean_text(raw) -> str:
     )
     text = " ".join(text.split())
     if not text:
-        raise TodoError("Teksten er tom")
+        raise TodoError("empty")
     if len(text) > MAX_TEXT:
-        raise TodoError(f"Teksten er for lang (højst {MAX_TEXT} tegn)")
+        raise TodoError("too_long")
     return text
 
 
@@ -102,7 +103,7 @@ class TodoStore:
 
         def apply(items):
             if len(items) >= MAX_ITEMS:
-                raise TodoError(f"Listen er fuld (højst {MAX_ITEMS} punkter)")
+                raise TodoError("full")
             item = {"id": uuid.uuid4().hex, "text": text, "done": False}
             items.append(item)
             return _public(item)
@@ -111,11 +112,11 @@ class TodoStore:
 
     def update(self, item_id, text=None, done=None) -> tuple[dict, int]:
         if text is None and done is None:
-            raise TodoError("Intet at ændre")
+            raise TodoError("nothing_to_change")
         if text is not None:
             text = clean_text(text)
         if done is not None and not isinstance(done, bool):
-            raise TodoError("Ugyldig afkrydsning")
+            raise TodoError("invalid_done")
 
         def apply(items):
             item = self._find(items, item_id)

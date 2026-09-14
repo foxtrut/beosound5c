@@ -13,5 +13,5 @@ Current sources:
   plex/       — Plex music browsing and playback
   jellyfin/   — Jellyfin music browsing and playback
   news.py     — RSS/TTS news playback via local mpv
-  todo/       — huskeliste: shopping/to-do list with tick-off, edited from a phone
+  todo/       — to-do/shopping list with tick-off, edited from a phone
 """

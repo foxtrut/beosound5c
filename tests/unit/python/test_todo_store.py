@@ -1,4 +1,4 @@
-"""Tests for the huskeliste store: input cleaning, limits, ordering, and
+"""Tests for the to-do store: input cleaning, limits, ordering, and
 crash-safe persistence."""
 from __future__ import annotations
 

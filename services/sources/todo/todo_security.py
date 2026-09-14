@@ -1,4 +1,4 @@
-"""Request guards for the huskeliste phone page and API.
+"""Request guards for the to-do phone page and API.
 
 The device's services have no login — a trusted home network is the security
 model (see the README). A trusted network still gets attacked *through the
@@ -104,4 +104,8 @@ def apply_security_headers(response, origin: str) -> None:
     headers.setdefault("Cross-Origin-Resource-Policy", "same-site")
     if origin:
         headers["Access-Control-Allow-Origin"] = origin
-        headers["Vary"] = "Origin"
+        vary = headers.get("Vary")
+        if not vary:
+            headers["Vary"] = "Origin"
+        elif "origin" not in vary.lower():
+            headers["Vary"] = f"{vary}, Origin"
