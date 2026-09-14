@@ -8,7 +8,8 @@
  *
  * All times arrive pre-formatted from the service, which owns the
  * timezone; the only formatting done here is naming weekdays and months,
- * so they follow the device's own locale.
+ * via _calLang() — the device's language setting if one is configured,
+ * otherwise the browser's own locale.
  */
 
 const _CAL_SCROLL_STEP = 90;          // one wheel click ≈ one event row
@@ -38,13 +39,21 @@ const _CAL_STRINGS = {
           empty: 'Nichts geplant in den nächsten {n} Tagen.' },
 };
 
-function _calT(key, vars) {
+function _calLang() {
     // An explicit device setting (config.json's "language") wins over the
-    // browser's own locale when set to anything but "auto"/unset.
+    // browser's own locale when set to anything but "auto"/unset. Used for
+    // both our own string table (_calT) and every Intl call below — passing
+    // Intl `undefined` reads the browser's raw default locale, which ignores
+    // this override entirely (that's how weekday names and "Tomorrow" kept
+    // showing up in English after switching the device setting to Danish).
     const override = window.AppConfig?.language;
     let lang = ((override && override !== 'auto') ? override : navigator.language || 'en').toLowerCase().split('-')[0];
     if (lang === 'no' || lang === 'nn') lang = 'nb';
-    let text = (_CAL_STRINGS[lang] || _CAL_STRINGS.en)[key];
+    return lang;
+}
+
+function _calT(key, vars) {
+    let text = (_CAL_STRINGS[_calLang()] || _CAL_STRINGS.en)[key];
     for (const [name, value] of Object.entries(vars || {})) {
         text = text.replace('{' + name + '}', () => value);
     }
@@ -53,7 +62,7 @@ function _calT(key, vars) {
 
 function _calRelativeDay(offset) {
     // numeric:'auto' gives the word ("i morgen"), not "om 1 dag".
-    const word = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+    const word = new Intl.RelativeTimeFormat(_calLang(), { numeric: 'auto' })
         .format(offset, 'day');
     return word.charAt(0).toLocaleUpperCase() + word.slice(1);
 }
@@ -90,7 +99,7 @@ function _calDayHeading(iso, isToday, isTomorrow) {
     // weekday from drifting a day for viewers east or west of Greenwich.
     const date = new Date(iso + 'T00:00:00Z');
     const opts = { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' };
-    let label = date.toLocaleDateString(undefined, opts);
+    let label = date.toLocaleDateString(_calLang(), opts);
     if (isToday) label = _calRelativeDay(0) + ' · ' + label;
     else if (isTomorrow) label = _calRelativeDay(1) + ' · ' + label;
     return label;
@@ -98,7 +107,7 @@ function _calDayHeading(iso, isToday, isTomorrow) {
 
 function _calUntilLabel(iso) {
     const date = new Date(iso + 'T00:00:00Z');
-    return date.toLocaleDateString(undefined,
+    return date.toLocaleDateString(_calLang(),
         { day: 'numeric', month: 'short', timeZone: 'UTC' });
 }
 
