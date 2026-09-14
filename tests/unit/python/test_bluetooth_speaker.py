@@ -213,6 +213,81 @@ def test_scan_without_controller_returns_nothing(monkeypatch):
     assert calls == ["show"]
 
 
+def test_parse_info_bonded():
+    assert bts.parse_info(SPEAKER_INFO)["bonded"] is True
+    unbonded = SPEAKER_INFO.replace("Bonded: yes", "Bonded: no")
+    info = bts.parse_info(unbonded)
+    assert info["paired"] and not info["bonded"]
+    # Older BlueZ has no Bonded line: a pairing is a bond there.
+    legacy = SPEAKER_INFO.replace("\tBonded: yes\n", "")
+    assert bts.parse_info(legacy)["bonded"] is True
+
+
+def _sequenced_bluetoothctl(monkeypatch, responses):
+    """Like _fake_bluetoothctl, but a response may be a list, consumed one
+    call at a time (the last entry repeats)."""
+    calls = []
+
+    async def fake_run(*args, timeout=5.0):
+        words = " ".join(a for a in args[1:] if a != "--timeout" and not a.isdigit())
+        calls.append(words)
+        out = responses.get(words, "")
+        if isinstance(out, list):
+            out = out.pop(0) if len(out) > 1 else out[0]
+        return out, 0
+    monkeypatch.setattr(bts, "_run", fake_run)
+    return calls
+
+
+UNBONDED = SPEAKER_INFO.replace("Bonded: yes", "Bonded: no").replace("Connected: no", "Connected: yes")
+UNPAIRED = SPEAKER_INFO.replace("Paired: yes", "Paired: no").replace("Bonded: yes", "Bonded: no")
+
+
+def test_pair_redoes_a_pairing_without_bond(monkeypatch):
+    calls = _sequenced_bluetoothctl(monkeypatch, {
+        f"info {MAC}": [UNBONDED, SPEAKER_INFO],
+        f"connect {MAC}": "Connection successful\n",
+    })
+
+    async def rediscover(speaker, seconds=15):
+        calls.append("rediscover")
+        return bts.parse_info(UNPAIRED)
+    monkeypatch.setattr(bts, "_rediscover", rediscover)
+    assert _run(bts.pair(MAC)) == (True, "Paired and connected")
+    assert calls[:4] == ["pairable on", f"info {MAC}", f"remove {MAC}", "rediscover"]
+    assert f"--agent NoInputNoOutput pair {MAC}" in calls
+
+
+def test_pair_fails_when_the_bond_is_not_stored(monkeypatch):
+    _sequenced_bluetoothctl(monkeypatch, {
+        f"info {MAC}": [UNPAIRED, UNBONDED],
+        f"--agent NoInputNoOutput pair {MAC}": "Pairing successful\n",
+    })
+    ok, message = _run(bts.pair(MAC))
+    assert not ok and "didn't store" in message
+
+
+def test_pair_retries_while_a_connect_holds_the_link(monkeypatch):
+    calls = _sequenced_bluetoothctl(monkeypatch, {
+        f"info {MAC}": [UNPAIRED, SPEAKER_INFO],
+        f"--agent NoInputNoOutput pair {MAC}": [
+            "Failed to pair: org.bluez.Error.InProgress\n", "Pairing successful\n"],
+        f"connect {MAC}": "Connection successful\n",
+    })
+    monkeypatch.setattr(bts, "PAIR_BUSY_RETRY_S", 0)
+    assert _run(bts.pair(MAC)) == (True, "Paired and connected")
+    assert calls.count(f"--agent NoInputNoOutput pair {MAC}") == 2
+
+
+def test_pair_skips_pairing_an_existing_bond(monkeypatch):
+    calls = _sequenced_bluetoothctl(monkeypatch, {
+        f"info {MAC}": SPEAKER_INFO,
+        f"connect {MAC}": "Connection successful\n",
+    })
+    assert _run(bts.pair(MAC))[0]
+    assert not any(" pair " in f" {c} " for c in calls if c != "pairable on")
+
+
 def test_describe():
     assert bts.describe(bts.parse_info(SPEAKER_INFO)) == "icon=audio-card class=0x240414 a2dp-sink"
     assert bts.describe(None) == "no info"
