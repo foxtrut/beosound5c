@@ -6,6 +6,10 @@ Fetches an hourly forecast for a configured lat/lon from DMI's public
 Forecast EDR API (the HARMONIE DINI model) and serves a "today" summary
 plus an hourly breakdown to the frontend. No API key required.
 
+When DMI's API refuses or fails — it answers 429 "Server is busy" for hours
+at a time — the same DMI model is fetched through Open-Meteo instead, and the
+WEATHER page credits whichever one served the forecast.
+
 Config (config.json):
     "weather": { "latitude": "56.172", "longitude": "10.199",
                  "location_name": "Christiansbjerg, Aarhus" }
@@ -42,6 +46,13 @@ DMI_EDR_BASE = "https://opendataapi.dmi.dk/v1/forecastedr"
 COLLECTION = "harmonie_dini_sf"
 PARAMETERS = ["temperature-2m", "total-precipitation",
               "fraction-of-cloud-cover", "wind-speed-10m"]
+# Fallback: Open-Meteo's feed of the same DMI HARMONIE model. Free for
+# non-commercial use (10,000 calls/day), no key; its data is CC BY 4.0, which
+# is why the page names the provider.
+OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
+OPEN_METEO_MODEL = "dmi_seamless"
+OPEN_METEO_HOURLY = ["temperature_2m", "precipitation", "cloud_cover", "wind_speed_10m"]
+PROVIDER_NAMES = {"dmi": "DMI", "open_meteo": "Open-Meteo"}
 REFRESH_INTERVAL = 30 * 60  # 30 minutes — forecast doesn't change fast enough for more
 # After a failed fetch, try again sooner than REFRESH_INTERVAL: DMI answers
 # 429 "Server is busy" for stretches (seen around midnight), and one miss used
@@ -117,7 +128,29 @@ class WeatherService(SourceBase):
             await asyncio.sleep(delay)
 
     async def _fetch_forecast(self):
-        """Fetch and summarise the forecast. Returns True if it was updated."""
+        """Fetch and summarise the forecast. Returns True if it was updated.
+
+        DMI's own API first; if it refuses or fails, the same model through
+        Open-Meteo, so a DMI outage does not leave the page empty.
+        """
+        for provider, fetch_steps in (("dmi", self._fetch_dmi_steps),
+                                      ("open_meteo", self._fetch_open_meteo_steps)):
+            try:
+                steps = await fetch_steps()
+            except Exception as e:
+                # A timeout's message is empty — name the type so the log says something.
+                log.error("%s fetch failed: %s", PROVIDER_NAMES[provider],
+                          str(e) or type(e).__name__)
+                continue
+            if steps:
+                self._forecast = self._build_summary(steps, provider)
+                self._last_fetch = time.time()
+                log.info("Forecast updated from %s: %d hourly steps",
+                         PROVIDER_NAMES[provider], len(steps))
+                return True
+        return False
+
+    async def _fetch_dmi_steps(self):
         log.info("Fetching forecast from DMI Open Data...")
         params = {
             "coords": f"POINT({self._lon} {self._lat})",
@@ -129,18 +162,36 @@ class WeatherService(SourceBase):
         async with self._http_session.get(url, params=params, timeout=20) as resp:
             if resp.status != 200:
                 log.error("DMI API returned %d", resp.status)
-                return False
+                return []
             data = await resp.json()
 
         steps = self._parse_steps(data)
         if not steps:
             log.warning("DMI response had no usable forecast steps")
-            return False
+        return steps
 
-        self._forecast = self._build_summary(steps)
-        self._last_fetch = time.time()
-        log.info("Forecast updated: %d hourly steps", len(steps))
-        return True
+    async def _fetch_open_meteo_steps(self):
+        log.info("Fetching forecast from Open-Meteo (DMI model) instead...")
+        params = {
+            "latitude": self._lat,
+            "longitude": self._lon,
+            "hourly": ",".join(OPEN_METEO_HOURLY),
+            "models": OPEN_METEO_MODEL,
+            "wind_speed_unit": "ms",
+            "timeformat": "unixtime",
+            "timezone": "GMT",
+            "forecast_days": "3",
+        }
+        async with self._http_session.get(OPEN_METEO_URL, params=params, timeout=20) as resp:
+            if resp.status != 200:
+                log.error("Open-Meteo API returned %d", resp.status)
+                return []
+            data = await resp.json()
+
+        steps = self._parse_open_meteo_steps(data)
+        if not steps:
+            log.warning("Open-Meteo response had no usable forecast steps")
+        return steps
 
     def _parse_steps(self, data):
         steps = []
@@ -165,7 +216,35 @@ class WeatherService(SourceBase):
         steps.sort(key=lambda s: s["time"])
         return steps
 
-    def _build_summary(self, steps):
+    def _parse_open_meteo_steps(self, data):
+        """Open-Meteo's hourly arrays, in the shape _parse_steps returns.
+
+        Open-Meteo's precipitation is the amount in the hour up to each
+        timestamp; DMI's is accumulated over the model run, which is what
+        _build_summary diffs — so accumulate it here the same way.
+        """
+        hourly = data.get("hourly") or {}
+
+        def at(name, i):
+            values = hourly.get(name) or []
+            return values[i] if i < len(values) else None
+
+        steps = []
+        cum = 0.0
+        for i, ts in enumerate(hourly.get("time") or []):
+            precip = at("precipitation", i)
+            if precip is not None:
+                cum = round(cum + precip, 2)
+            steps.append({
+                "time": datetime.fromtimestamp(ts, LOCAL_TZ),
+                "temp_c": at("temperature_2m", i),
+                "precip_cum_mm": cum if precip is not None else None,
+                "cloud_pct": at("cloud_cover", i),
+                "wind_ms": at("wind_speed_10m", i),
+            })
+        return steps
+
+    def _build_summary(self, steps, provider="dmi"):
         now = datetime.now(LOCAL_TZ)
         today = now.date()
         now_hour = now.replace(minute=0, second=0, microsecond=0)
@@ -213,6 +292,7 @@ class WeatherService(SourceBase):
         current = current_step
         return {
             "updated": time.time(),
+            "provider": provider,
             "location": {
                 "name": self._location_name or None,
                 "lat": self._lat,
@@ -245,6 +325,7 @@ class WeatherService(SourceBase):
             "name": self.name,
             "last_fetch": self._last_fetch,
             "has_data": bool(self._forecast),
+            "provider": self._forecast.get("provider"),
         }
 
     async def handle_resync(self):
