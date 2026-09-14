@@ -286,6 +286,16 @@ def build() -> dict[str, object]:
          ]},
     ]
 
+    # To-do list — the /api/items envelope, open items first like the service.
+    files["todo_items.json"] = {"version": 12, "items": [
+        {"id": f"{n:032x}", "text": text, "done": done}
+        for n, (text, done) in enumerate([
+            ("Mælk", False), ("Rugbrød", False), ("Æg, 10 stk.", False),
+            ("Kaffebønner", False), ("Ring til VVS'eren", False),
+            ("Bananer", True), ("Opvasketabs", True),
+        ], start=1)
+    ]}
+
     files["config.json"] = {
         "device": "BeoSound 5c",
         "setup_complete": True,

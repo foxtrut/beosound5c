@@ -16,4 +16,5 @@ Current sources:
   weather.py  — DMI forecast display (no playback)
   calendar_source/ — Google Calendar agenda display (no playback)
   dr_news.py  — DR (Danmarks Radio) news browsing from RSS (no playback)
+  todo/       — to-do/shopping list with tick-off, edited from a phone
 """

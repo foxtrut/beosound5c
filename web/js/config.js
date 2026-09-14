@@ -58,6 +58,8 @@ const AppConfig = {
     calendarServiceUrl: 'http://localhost:8791',
     // DR News source (DR RSS feeds)
     drNewsServiceUrl: 'http://localhost:8792',
+    // To-do source (HUSKELISTE in Danish; phone page on the same port)
+    todoServiceUrl: 'http://localhost:8793',
 
     // Radio source (Radio Browser)
     radioServiceUrl: 'http://localhost:8779',

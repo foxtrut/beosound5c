@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#000000">
+    <title>To-do</title>
+    <link rel="stylesheet" href="app.css">
+    <script src="app.js" defer></script>
+</head>
+<body>
+    <main>
+        <header>
+            <h1 data-i18n="title">To-do</h1>
+            <p id="status" class="status" role="status" hidden></p>
+        </header>
+
+        <form id="add-form" autocomplete="off">
+            <label for="add-text" class="visually-hidden" data-i18n="newItem">New item</label>
+            <input id="add-text" type="text" maxlength="120" placeholder="Add item…"
+                   data-i18n-placeholder="placeholder" enterkeyhint="done" autocapitalize="sentences">
+            <button type="submit" data-i18n="add">Add</button>
+        </form>
+
+        <ul id="items" class="items"></ul>
+        <p id="empty" class="empty" data-i18n="empty" hidden>The list is empty.</p>
+
+        <footer>
+            <button id="clear-done" type="button" class="secondary" hidden>Clear ticked</button>
+        </footer>
+    </main>
+</body>
+</html>
