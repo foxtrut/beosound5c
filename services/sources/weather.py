@@ -59,6 +59,12 @@ REFRESH_INTERVAL = 30 * 60  # 30 minutes — forecast doesn't change fast enough
 # to leave the WEATHER page empty for half an hour. Resets on the next success.
 RETRY_DELAYS = (60, 2 * 60, 5 * 60, 10 * 60, 20 * 60, REFRESH_INTERVAL)
 RAIN_THRESHOLD_MM = 0.1  # hourly amount considered "it's raining"
+# Fixed regardless of provider or time of day — capping the hourly list to
+# "whatever's left of today" instead meant it shrank to almost nothing in
+# the evening, and DMI vs. Open-Meteo could return different step counts
+# for the same window, so the two providers visibly disagreed on how many
+# hours to show. The frontend only ever renders hours.slice(0, 10) anyway.
+HOURLY_COUNT = 10
 LOCAL_TZ = ZoneInfo("Europe/Copenhagen")
 
 
@@ -267,17 +273,20 @@ class WeatherService(SourceBase):
                 delta = max(0.0, round(cum - prev_cum, 2))
             prev_cum = cum
 
-            if s["time"].date() != today:
-                continue
-            if cum is not None:
-                if today_start_cum is None:
-                    today_start_cum = cum
-                today_end_cum = cum
-            if s["temp_c"] is not None:
-                today_temps.append(s["temp_c"])
-            if delta is not None and delta >= RAIN_THRESHOLD_MM:
-                will_rain = True
-            if s["time"] >= now_hour:
+            # "Today"'s summary (will_rain, min/max) stays scoped to the
+            # calendar day — but the hourly list below is a fixed lookahead
+            # from now, independent of the day boundary.
+            if s["time"].date() == today:
+                if cum is not None:
+                    if today_start_cum is None:
+                        today_start_cum = cum
+                    today_end_cum = cum
+                if s["temp_c"] is not None:
+                    today_temps.append(s["temp_c"])
+                if delta is not None and delta >= RAIN_THRESHOLD_MM:
+                    will_rain = True
+
+            if s["time"] >= now_hour and len(hourly) < HOURLY_COUNT:
                 hourly.append({
                     "time": s["time"].strftime("%H:%M"),
                     "temp_c": s["temp_c"],
