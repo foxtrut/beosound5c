@@ -11,6 +11,7 @@
         'beo-source-spotify': 'Running', 'beo-source-tidal': 'Running',
         'beo-source-usb': 'Inactive', 'beo-source-news': 'Running',
         'beo-source-weather': 'Running', 'beo-source-calendar': 'Running',
+        'beo-source-dr-news': 'Running',
     };
 
     const system = {

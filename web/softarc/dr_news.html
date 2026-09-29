@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DR Nyheder - Beosound 5c</title>
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="../assets/favicons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="../assets/favicons/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicons/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="../assets/favicons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="../assets/favicons/android-chrome-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="../assets/favicons/android-chrome-512x512.png">
+    <link rel="manifest" href="../assets/favicons/site.webmanifest">
+    <meta name="theme-color" content="#000000">
+
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="../assets/phosphor/phosphor.css">
+    <style>
+        /* DR articles carry subheadings and fact boxes the Guardian text lacks */
+        .page-view-body h3 { margin: 1.5rem 0 0.75rem; font-size: 1.1em; }
+        .page-view-body .factbox {
+            margin: 1.5rem 0; padding: 0.75rem 1rem;
+            border-left: 3px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .page-view-body .factbox h3 { margin-top: 0; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="counter">
+            <div id="counter-path"></div>
+            <span id="current-item">1</span> / <span id="total-items">0</span>
+        </div>
+        <div class="hierarchy-depth-1" id="hierarchy-background"></div>
+        <div class="arc-container" id="arc-container"></div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/demo-backend.js"></script>
+    <script src="../js/arc-utils.js"></script>
+    <script src="../js/emulator-bridge.js"></script>
+    <script src="script-v2.js"></script>
+    <script>
+        const DR_NEWS_URL = (typeof AppConfig !== 'undefined' && AppConfig.drNewsServiceUrl)
+            ? AppConfig.drNewsServiceUrl
+            : 'http://localhost:8792';
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const arcList = new ArcList({
+                rootLoader: async () => {
+                    const resp = await fetch(`${DR_NEWS_URL}/articles`);
+                    if (!resp.ok) throw new Error(`Fetch failed: ${resp.status}`);
+                    return resp.json();
+                },
+                levels: [{
+                    // Level 0: Sections → articles
+                    childrenKey: 'articles',
+                    isContainer: (item) => item.articles?.length > 0,
+                }],
+                storagePrefix: 'dr_news_arclist',
+                context: 'dr_news',
+                webhookUrl: typeof AppConfig !== 'undefined' ? AppConfig.webhookUrl : null,
+                onGo: (item, depth) => {
+                    // Articles with pages are handled by ArcList V2 page view
+                    console.log(`[DR_NEWS] GO depth=${depth} item="${item.name}"`);
+                },
+            });
+            window.arcListInstance = arcList;
+        });
+    </script>
+</body>
+</html>
