@@ -1,0 +1,106 @@
+{
+ "updated": 1789000000,
+ "timezone": "Europe/Copenhagen",
+ "days_ahead": 14,
+ "count": 8,
+ "error": null,
+ "days": [
+  {
+   "date": "2026-09-14",
+   "is_today": true,
+   "is_tomorrow": false,
+   "events": [
+    {
+     "summary": "Morgenmøde",
+     "location": "",
+     "calendar": "Work",
+     "all_day": false,
+     "time": "09:00",
+     "end_time": "09:30",
+     "ongoing": false
+    },
+    {
+     "summary": "Tandlæge",
+     "location": "Hovedgaden 4",
+     "calendar": "Family",
+     "all_day": false,
+     "time": "13:30",
+     "end_time": "14:15",
+     "ongoing": false
+    },
+    {
+     "summary": "Korprøve",
+     "location": "Sognegården",
+     "calendar": "Family",
+     "all_day": false,
+     "time": "19:00",
+     "end_time": "20:30",
+     "ongoing": false
+    }
+   ]
+  },
+  {
+   "date": "2026-09-15",
+   "is_today": false,
+   "is_tomorrow": true,
+   "events": [
+    {
+     "summary": "Ferie i Skagen",
+     "location": "",
+     "calendar": "Family",
+     "all_day": true,
+     "time": "",
+     "until": "2026-09-18"
+    },
+    {
+     "summary": "Kvartalsgennemgang",
+     "location": "",
+     "calendar": "Work",
+     "all_day": false,
+     "time": "10:00",
+     "end_time": "11:30",
+     "ongoing": false
+    }
+   ]
+  },
+  {
+   "date": "2026-09-17",
+   "is_today": false,
+   "is_tomorrow": false,
+   "events": [
+    {
+     "summary": "Bilsyn",
+     "location": "Bilsyn Aarhus Nord",
+     "calendar": "Family",
+     "all_day": false,
+     "time": "08:15",
+     "end_time": "09:00",
+     "ongoing": false
+    }
+   ]
+  },
+  {
+   "date": "2026-09-20",
+   "is_today": false,
+   "is_tomorrow": false,
+   "events": [
+    {
+     "summary": "Fars fødselsdag",
+     "location": "",
+     "calendar": "Family",
+     "all_day": true,
+     "time": ""
+    },
+    {
+     "summary": "Middag hos Anne og Lars",
+     "location": "Kirkevej 12",
+     "calendar": "Family",
+     "all_day": false,
+     "time": "18:00",
+     "end_time": "22:00",
+     "ongoing": false
+    }
+   ]
+  }
+ ]
+}
