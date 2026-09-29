@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-do - Beosound 5c</title>
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="../assets/favicons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="../assets/favicons/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicons/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="../assets/favicons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="../assets/favicons/android-chrome-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="../assets/favicons/android-chrome-512x512.png">
+    <link rel="manifest" href="../assets/favicons/site.webmanifest">
+    <meta name="theme-color" content="#000000">
+
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="../assets/phosphor/phosphor.css">
+</head>
+<body>
+    <div id="app">
+        <div class="counter">
+            <div id="counter-path"></div>
+            <span id="current-item">1</span> / <span id="total-items">0</span>
+        </div>
+        <div class="hierarchy-depth-1" id="hierarchy-background"></div>
+        <div class="arc-container" id="arc-container"></div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/demo-backend.js"></script>
+    <script src="../js/arc-utils.js"></script>
+    <script src="../js/emulator-bridge.js"></script>
+    <script src="script-v2.js"></script>
+    <script>
+        const TODO_URL = (typeof AppConfig !== 'undefined' && AppConfig.todoServiceUrl)
+            ? AppConfig.todoServiceUrl
+            : 'http://localhost:8793';
+
+        // Pseudo-items around the real list. Their ids can't collide with the
+        // service's (32 hex characters).
+        const CLEAR_DONE_ID = 'todo-clear-done';
+        const EMPTY_ID = 'todo-empty';
+
+        const TODO_STRINGS = {
+            en: { clearDone: 'Clear ticked', empty: 'The list is empty' },
+            da: { clearDone: 'Ryd afkrydsede', empty: 'Listen er tom' },
+        };
+
+        function todoText(key) {
+            // An explicit device setting (config.json's "language") wins over the
+            // browser's own locale when set to anything but "auto"/unset — same
+            // rule as the weather and calendar views.
+            const override = window.AppConfig?.language;
+            const lang = ((override && override !== 'auto') ? override : navigator.language || 'en')
+                .toLowerCase().split('-')[0];
+            return (TODO_STRINGS[lang] || TODO_STRINGS.en)[key];
+        }
+
+        function mapTodo(raw) {
+            if (raw.id === CLEAR_DONE_ID) {
+                return { id: raw.id, name: todoText('clearDone'), icon: 'broom', color: '#c55', actionable: true };
+            }
+            if (raw.id === EMPTY_ID) {
+                return { id: raw.id, name: todoText('empty'), icon: 'list-checks', color: '#777', actionable: false };
+            }
+            // name is rendered with textContent by ArcList — never as HTML.
+            // The arc id carries the item's state: ArcList only moves elements
+            // whose ids are unchanged on reload, so a tick or rename from the
+            // phone would otherwise keep showing the old icon and text.
+            return {
+                id: `${raw.id}:${raw.done ? 1 : 0}:${raw.text}`,
+                name: raw.text,
+                icon: raw.done ? 'check-square' : 'square',
+                color: raw.done ? '#6c6' : '#fff',
+                actionable: true,
+                todoId: raw.id,
+                done: !!raw.done,
+            };
+        }
+
+        async function loadTodos() {
+            const resp = await fetch(`${TODO_URL}/api/items`, { cache: 'no-store' });
+            if (!resp.ok) throw new Error(`Fetch failed: ${resp.status}`);
+            const data = await resp.json();
+            const items = Array.isArray(data.items) ? data.items.slice() : [];
+            if (!items.length) return [{ id: EMPTY_ID }];
+            if (items.some(item => item.done)) items.push({ id: CLEAR_DONE_ID });
+            return items;
+        }
+
+        async function send(method, path, body) {
+            const resp = await fetch(`${TODO_URL}${path}`, {
+                method,
+                cache: 'no-store',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body || {}),
+            });
+            if (!resp.ok) throw new Error(`${method} ${path} failed: ${resp.status}`);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const arcList = new ArcList({
+                rootLoader: loadTodos,
+                levels: [{ itemMapper: mapTodo }],
+                storagePrefix: 'todo_arclist',
+                context: 'todo',
+                webhookUrl: typeof AppConfig !== 'undefined' ? AppConfig.webhookUrl : null,
+                onGo: async (item) => {
+                    try {
+                        if (item.id === CLEAR_DONE_ID) {
+                            await send('POST', '/api/clear-done');
+                        } else if (item.todoId) {
+                            await send('PATCH', `/api/items/${encodeURIComponent(item.todoId)}`, { done: !item.done });
+                        } else {
+                            return;
+                        }
+                    } catch (e) {
+                        console.warn('[TODO]', e.message);
+                    }
+                    await arcList.reloadData();
+                },
+            });
+            window.arcListInstance = arcList;
+        });
+    </script>
+</body>
+</html>
