@@ -25,6 +25,7 @@ DEFAULT_SOURCE_HANDLES = {
     "usb": {"play", "pause", "next", "prev", "stop", "go", "left", "right",
             "up", "down"},
     "news": {"go", "left", "right", "up", "down"},
+    "weather": {"go", "left", "right", "up", "down"},
     "radio": {"play", "pause", "next", "prev", "stop", "go", "left", "right",
               "up", "down"} | _DIGITS,
     # No digits: an AirPlay session has no station or track numbering to
@@ -40,6 +41,7 @@ DEFAULT_SOURCE_PORTS = {
     "usb": 8773,
     "apple_music": 8774,
     "news": 8776,
+    "weather": 8790,
     "tidal": 8777,
     "plex": 8778,
     "jellyfin": 8781,

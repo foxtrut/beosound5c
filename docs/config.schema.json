@@ -289,6 +289,26 @@
       "additionalProperties": false
     },
 
+    "weather": {
+      "type": "object",
+      "description": "Weather source settings (DMI Open Data forecast, falling back to the same DMI model via Open-Meteo when DMI's API refuses). No API key required — only a location. If WEATHER is in the menu without coordinates, the source logs a warning and beo-source-weather refuses to start.",
+      "properties": {
+        "latitude": {
+          "type": "string",
+          "description": "Decimal degrees, e.g. '56.172'."
+        },
+        "longitude": {
+          "type": "string",
+          "description": "Decimal degrees, e.g. '10.199'."
+        },
+        "location_name": {
+          "type": "string",
+          "description": "Optional display label shown on the WEATHER page, e.g. 'Christiansbjerg, Aarhus'. Purely cosmetic — the coordinates above are what's sent to the forecast API. Falls back to showing the coordinates if left out."
+        }
+      },
+      "additionalProperties": false
+    },
+
     "masterlink": {
       "type": "object",
       "description": "B&O Master Link bus role + IR filter. Read by services/masterlink.py at startup.",
