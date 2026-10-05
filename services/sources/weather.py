@@ -22,6 +22,7 @@ Port: 8790
 
 import asyncio
 import logging
+import os
 import sys
 import time
 from datetime import datetime
@@ -66,6 +67,17 @@ RAIN_THRESHOLD_MM = 0.1  # hourly amount considered "it's raining"
 # hours to show. The frontend only ever renders hours.slice(0, 10) anyway.
 HOURLY_COUNT = 10
 LOCAL_TZ = ZoneInfo("Europe/Copenhagen")
+# The device has no battery-backed clock: at boot the kernel starts at 1970
+# and fake-hwclock restores the time of the last shutdown, so for the first
+# half-minute "today" is whatever day the device was last switched off. A
+# summary built then is for the wrong day, and the user sees it precisely
+# because they look at the screen right after switching on. Same fix as the
+# calendar source.
+TIMESYNC_MARKER = "/run/systemd/timesync/synchronized"
+CLOCK_WAIT_TIMEOUT = 180        # give up waiting for NTP; a stale forecast beats none
+CLOCK_POLL_INTERVAL = 2
+CLOCK_CHECK_INTERVAL = 30       # how often the idle wait re-checks the clock
+CLOCK_JUMP_TOLERANCE = 10       # wall-vs-monotonic drift that counts as a jump
 
 
 def kelvin_to_c(kelvin):
@@ -95,6 +107,7 @@ class WeatherService(SourceBase):
     def __init__(self):
         super().__init__()
         self._forecast = {}
+        self._forecast_date = None  # local date the current summary was built for
         self._last_fetch = 0
         self._lat = ""
         self._lon = ""
@@ -117,6 +130,7 @@ class WeatherService(SourceBase):
         await self.register("gone")
 
     async def _refresh_loop(self):
+        await self._wait_for_clock()
         failures = 0
         while True:
             try:
@@ -131,7 +145,69 @@ class WeatherService(SourceBase):
             delay = next_delay(failures)
             if failures:
                 log.info("Retrying forecast fetch in %d min", delay // 60)
-            await asyncio.sleep(delay)
+            try:
+                await self._wait_for_refresh(delay)
+            except asyncio.CancelledError:
+                return
+
+    # ── Clock ──
+
+    def _clock_is_synced(self):
+        """Has the system clock been set from the network yet?
+
+        systemd-timesyncd creates TIMESYNC_MARKER once it has synchronised.
+        On a host that doesn't run it (a developer Mac) the directory itself
+        is missing — there is nothing to wait for, so trust the clock.
+        """
+        if os.path.exists(TIMESYNC_MARKER):
+            return True
+        return not os.path.isdir(os.path.dirname(TIMESYNC_MARKER))
+
+    async def _wait_for_clock(self):
+        """Hold off the first fetch until the date can be trusted.
+
+        Capped: if NTP never arrives (no internet), fetch anyway rather than
+        showing nothing at all — the loop below corrects the summary as soon
+        as the clock is set.
+        """
+        if self._clock_is_synced():
+            return
+        log.info("Waiting for the system clock to be synchronised…")
+        waited = 0
+        while waited < CLOCK_WAIT_TIMEOUT:
+            await asyncio.sleep(CLOCK_POLL_INTERVAL)
+            waited += CLOCK_POLL_INTERVAL
+            if self._clock_is_synced():
+                log.info("Clock synchronised after %ds — today is %s",
+                         waited, datetime.now(LOCAL_TZ).date())
+                return
+        log.warning("Clock still not synchronised after %ds — fetching anyway",
+                    CLOCK_WAIT_TIMEOUT)
+
+    async def _wait_for_refresh(self, delay):
+        """Idle until the forecast needs refetching.
+
+        Normally that is `delay` seconds later, but two things make the
+        current summary wrong before then, and both are invisible to a plain
+        sleep: the clock being corrected underneath us (boot-time NTP), and
+        midnight passing, which moves which day "today" means.
+        """
+        deadline = time.monotonic() + delay
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return
+            wall_before, mono_before = time.time(), time.monotonic()
+            await asyncio.sleep(min(CLOCK_CHECK_INTERVAL, remaining))
+            drift = ((time.time() - wall_before)
+                     - (time.monotonic() - mono_before))
+            if abs(drift) > CLOCK_JUMP_TOLERANCE:
+                log.info("System clock jumped %+.0fs — refetching forecast", drift)
+                return
+            if self._forecast_date and datetime.now(LOCAL_TZ).date() != self._forecast_date:
+                log.info("Date is now %s — refetching forecast",
+                         datetime.now(LOCAL_TZ).date())
+                return
 
     async def _fetch_forecast(self):
         """Fetch and summarise the forecast. Returns True if it was updated.
@@ -253,6 +329,7 @@ class WeatherService(SourceBase):
     def _build_summary(self, steps, provider="dmi"):
         now = datetime.now(LOCAL_TZ)
         today = now.date()
+        self._forecast_date = today
         now_hour = now.replace(minute=0, second=0, microsecond=0)
         # steps[0] is the oldest point in the model run, which can be hours
         # in the past relative to "now" — "current" must track the step

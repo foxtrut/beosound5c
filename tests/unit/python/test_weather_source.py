@@ -148,19 +148,21 @@ def test_refresh_loop_retries_quickly_until_a_fetch_succeeds(monkeypatch):
             raise outcome
         return outcome
 
-    sleeps = []
+    waits = []
 
-    async def fake_sleep(seconds):
-        sleeps.append(seconds)
+    async def fake_wait(delay):
+        # The idle wait is what the schedule asks for; how it sleeps
+        # internally (in slices, so it can notice the clock moving) is its
+        # own business, so record the requested delay rather than the sleeps.
+        waits.append(delay)
         if not outcomes:
             raise asyncio.CancelledError  # stop the endless loop
 
     monkeypatch.setattr(svc, "_fetch_forecast", fake_fetch)
-    monkeypatch.setattr("sources.weather.asyncio.sleep", fake_sleep)
+    monkeypatch.setattr(svc, "_wait_for_refresh", fake_wait)
 
-    with pytest.raises(asyncio.CancelledError):
-        asyncio.run(svc._refresh_loop())
-    assert sleeps == [60, 120, REFRESH_INTERVAL]
+    asyncio.run(svc._refresh_loop())   # cancellation ends the loop cleanly
+    assert waits == [60, 120, REFRESH_INTERVAL]
 
 
 def test_open_meteo_steps_accumulate_hourly_precipitation(frozen_now):
@@ -227,3 +229,107 @@ def test_fetch_keeps_the_last_forecast_when_both_providers_fail(frozen_now):
     svc._forecast = {"provider": "dmi", "current": {"temp_c": 14.3}}
     assert asyncio.run(svc._fetch_forecast()) is False
     assert svc._forecast == {"provider": "dmi", "current": {"temp_c": 14.3}}
+
+
+# ── Clock handling ───────────────────────────────────────────────────────────
+#
+# The device has no battery-backed clock. At boot it briefly believes it is
+# whatever day it was last switched off, so a summary built then is for the
+# wrong day — and the user sees it, because they look right after switching
+# on. Same failure the calendar source had (fixed there in e957154).
+
+import time as real_time
+import types
+
+import sources.weather as weather_module
+
+
+class _FakeClock:
+    """A clock that only moves when the service sleeps."""
+
+    def __init__(self, jump_at_sleep=None, jump=0.0):
+        self.wall = 1_800_000_000.0
+        self.mono = 1_000.0
+        self.sleeps = 0
+        self._jump_at = jump_at_sleep
+        self._jump = jump
+
+    def time(self):
+        return self.wall
+
+    def monotonic(self):
+        return self.mono
+
+    def shim_asyncio(self):
+        async def sleep(duration):
+            self.sleeps += 1
+            self.mono += duration
+            self.wall += duration
+            if self._jump_at is not None and self.sleeps == self._jump_at:
+                self.wall += self._jump      # NTP correcting the clock
+            await asyncio.sleep(0)
+        return types.SimpleNamespace(sleep=sleep,
+                                     CancelledError=asyncio.CancelledError)
+
+
+def _service_with_clock(monkeypatch, clock):
+    svc = WeatherService()
+    monkeypatch.setattr(weather_module, "time", clock)
+    monkeypatch.setattr(weather_module, "asyncio", clock.shim_asyncio())
+    return svc
+
+
+class TestWeatherClockSynced:
+    def test_synced_once_the_marker_appears(self, monkeypatch, tmp_path):
+        marker = tmp_path / "synchronized"
+        monkeypatch.setattr(weather_module, "TIMESYNC_MARKER", str(marker))
+        svc = WeatherService()
+        assert svc._clock_is_synced() is False
+        marker.touch()
+        assert svc._clock_is_synced() is True
+
+    def test_host_without_timesyncd_is_trusted(self, monkeypatch, tmp_path):
+        """A developer Mac has no /run/systemd — nothing to wait for."""
+        monkeypatch.setattr(weather_module, "TIMESYNC_MARKER",
+                            str(tmp_path / "absent" / "synchronized"))
+        assert WeatherService()._clock_is_synced() is True
+
+
+def test_wait_for_clock_gives_up_rather_than_hanging(monkeypatch, tmp_path):
+    """No internet must not mean no forecast at all."""
+    monkeypatch.setattr(weather_module, "TIMESYNC_MARKER",
+                        str(tmp_path / "synchronized"))
+    clock = _FakeClock()
+    svc = _service_with_clock(monkeypatch, clock)
+    asyncio.run(svc._wait_for_clock())
+    assert clock.mono - 1_000.0 >= weather_module.CLOCK_WAIT_TIMEOUT
+
+
+def test_refresh_waits_the_full_delay_when_nothing_changes(monkeypatch):
+    clock = _FakeClock()
+    svc = _service_with_clock(monkeypatch, clock)
+    svc._forecast_date = real_datetime.date.today()
+    start = clock.mono
+    asyncio.run(svc._wait_for_refresh(REFRESH_INTERVAL))
+    assert clock.mono - start >= REFRESH_INTERVAL
+
+
+def test_refresh_wakes_early_when_the_clock_is_corrected(monkeypatch):
+    """The boot-time NTP jump: wall time moves, elapsed time does not."""
+    clock = _FakeClock(jump_at_sleep=2, jump=3 * 7 * 24 * 3600)
+    svc = _service_with_clock(monkeypatch, clock)
+    svc._forecast_date = real_datetime.date.today()
+    start = clock.mono
+    asyncio.run(svc._wait_for_refresh(REFRESH_INTERVAL))
+    assert clock.mono - start < REFRESH_INTERVAL
+    assert clock.sleeps == 2
+
+
+def test_refresh_wakes_early_when_the_date_rolls_over(monkeypatch):
+    """Left on past midnight, 'today's forecast is yesterday's."""
+    clock = _FakeClock()
+    svc = _service_with_clock(monkeypatch, clock)
+    svc._forecast_date = real_datetime.date.today() - real_datetime.timedelta(days=1)
+    start = clock.mono
+    asyncio.run(svc._wait_for_refresh(REFRESH_INTERVAL))
+    assert clock.mono - start < REFRESH_INTERVAL
