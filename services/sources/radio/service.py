@@ -58,13 +58,19 @@ CURATED_SVERIGE = [
     "8b00bcfc-4d94-11ea-b877-52543be04c81",  # Retro FM Skåne
 ]
 
+# The DR entries are deliberately the channels' "(AAC)" twins. They carry
+# DR's own 800x800 channel logo as an SVG, where the plain entries carry
+# dr.dk/favicon.ico — the corporate mark at 64x64, identical for every
+# channel — and they stream HLS at 324k instead of 128k Icecast. P5 is the
+# København feed, which is the same stream the untagged "DR P5" entry had.
+# DR Nyheder has no such twin, so it keeps the generic favicon.
 CURATED_DANMARK = [
-    "960f5a18-0601-11e8-ae97-52543be04c81",  # DR P1
-    "960f5af4-0601-11e8-ae97-52543be04c81",  # DR P2
+    "28b58640-e317-4778-9bba-a1992f8f0bf7",  # DR P1 (AAC 324k)
+    "4b7fdc14-64c5-4bf9-8924-615e81b812dc",  # DR P2 (AAC 324k)
     "b0f1b100-23b5-4c7b-bdb1-a2c68006d6bf",  # DR P3 (AAC 324k)
     "4c288b10-8af2-40ff-8c11-932730a45fc2",  # DR P4 Østjylland (AAC 324k)
-    "9610bcba-0601-11e8-ae97-52543be04c81",  # DR P5
-    "9610bd91-0601-11e8-ae97-52543be04c81",  # DR P6 BEAT
+    "65490fd6-c55b-4704-9638-35445a4c4f1a",  # DR P5 København (AAC 324k)
+    "2d422514-5893-4845-808b-1292447d3144",  # DR P6 BEAT (AAC 324k)
     "9298e58e-3dd2-418c-bd39-6798f59b8b10",  # DR P8 Jazz (AAC 324k)
     "9610c1ca-0601-11e8-ae97-52543be04c81",  # DR Nyheder
     "963cba5e-0601-11e8-ae97-52543be04c81",  # Radio Soft
