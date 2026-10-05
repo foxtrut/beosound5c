@@ -128,6 +128,7 @@ STATION_STREAM = {
 # Radio Browser knows it by.
 STATION_NAME = {
     "9610bbeb-0601-11e8-ae97-52543be04c81": "DR P4 Østjylland",
+    "632fe760-a124-4385-9061-6acb4bd14d0f": "The Voice",
 }
 
 # Station artwork overrides, by UUID. The Radio Browser entries for DR's
