@@ -92,6 +92,26 @@ ROUTER_PLAYBACK_OVERRIDE_URL = ROUTER_PLAYBACK_OVERRIDE
 ROUTER_OUTPUT_ON_URL = ROUTER_OUTPUT_ON
 
 
+def _clean_headers(headers):
+    """Keep only well-formed HTTP headers out of a /player/play body.
+
+    A header name or value carrying CR/LF would be a request-splitting
+    gift to whatever the player hands the URL to, and the body reaches
+    us over plain localhost HTTP from any source.
+    """
+    if not isinstance(headers, dict):
+        return None
+    clean = {}
+    for name, value in headers.items():
+        if not isinstance(name, str) or not isinstance(value, str):
+            continue
+        if not name or any(c in name or c in value for c in "\r\n"):
+            log.warning("Dropped malformed play header %r", name[:40])
+            continue
+        clean[name] = value
+    return clean or None
+
+
 class ArtworkCache:
     """Simple LRU cache for artwork data (URL -> base64 dict)."""
 
@@ -182,11 +202,14 @@ class PlayerBase:
     # ── Abstract methods (subclass must implement) ──
 
     async def play(self, uri=None, url=None, track_uri=None, meta=None,
-                   radio=False, track_uris=None) -> bool:
+                   radio=False, track_uris=None, headers=None) -> bool:
         """Start playback. uri = Spotify/share link, url = generic stream.
         track_uri = Spotify track URI to start at within a playlist/album.
         radio = treat URL as continuous radio stream (affects Sonos URI scheme).
-        track_uris = list of individual track URIs to queue (for non-playlist collections)."""
+        track_uris = list of individual track URIs to queue (for non-playlist collections).
+        headers = HTTP headers to send when fetching *url*. Only a player
+        that does its own fetching can honour them; a networked speaker
+        pulls the URL itself, so it ignores them."""
         raise NotImplementedError
 
     async def pause(self) -> bool:
@@ -503,7 +526,8 @@ class PlayerBase:
             uri=data.get("uri"), url=data.get("url"),
             track_uri=data.get("track_uri"), meta=data.get("meta"),
             radio=data.get("radio", False),
-            track_uris=data.get("track_uris"))
+            track_uris=data.get("track_uris"),
+            headers=_clean_headers(data.get("headers")))
         # Re-stamp after play completes — SoCo calls can take 5+ seconds,
         # and the monitor suppression window starts from the last stamp.
         self._stamp_command()

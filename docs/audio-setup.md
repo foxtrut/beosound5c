@@ -48,7 +48,7 @@ Sources check the player's capabilities at startup to determine how to play cont
 | **Apple Music** | Yes — ShareLink handles Apple Music share URLs | No | No | No | No |
 | **TIDAL** | Yes — ShareLink handles TIDAL share URLs | Yes — direct stream URLs | Yes — direct stream URLs | Yes — direct stream URLs | No |
 | **Plex** | Yes — `play_uri` with direct stream URLs | Yes — direct stream URLs | Yes — direct stream URLs | Yes — direct stream URLs | No |
-| **Jellyfin** | Yes — `play_uri` with direct stream URLs | Yes — direct stream URLs | Yes — direct stream URLs | Yes — direct stream URLs | No |
+| **Jellyfin** | Server < 12.1 only‡ | Server < 12.1 only‡ | Server < 12.1 only‡ | Server < 12.1 only‡ | Yes — `player.type: local` |
 | **CD** | Yes — plays on Pi via mpv | Yes — plays on Pi via mpv | Yes — plays on Pi via mpv | Yes — plays on Pi via mpv | Yes |
 | **USB** | Yes — streams track URLs to Sonos | Yes — streams track URLs | Yes — streams track URLs | Yes — streams track URLs | Yes — falls back to local mpv |
 | **AirPlay 2** | No | No | No | No | No — needs `player.type: local` |
@@ -60,6 +60,7 @@ Sources check the player's capabilities at startup to determine how to play cont
 - **† Spotify Connect (experimental):** for BlueSound/HEOS/WiiM the BS5c instead drives the speaker's *built-in* Spotify Connect receiver via the Spotify Web API — it starts/transfers playback to the device rather than sending a share link. Requires **Spotify Premium** and the speaker logged into the same Spotify account. Set `spotify.connect_device` to the speaker's Connect name (else it auto-picks by device name / active device). Apple Music has no equivalent transfer API, so it stays Sonos-only.
 - TIDAL works with both players: on Sonos it uses ShareLink (player manages queue); on BlueSound it resolves direct stream URLs via tidalapi and manages its own queue (like Plex)
 - Plex and Jellyfin work with both players because they send direct stream URLs (via `url`), not share links
+- **‡ Jellyfin 12.1 and newer need the local player.** 12.1 dropped the `api_key` query parameter and authenticates streams by the `Authorization: MediaBrowser …` header only. The local player passes it to mpv; a networked speaker fetches the URL itself and has nowhere to put a header, so every track 401s. The source still appends `api_key` for those players — all it can do, and enough on older servers — and logs a warning at startup when the server rejects it.
 - Plex, Jellyfin and TIDAL (on BlueSound) manage their own queues (next/prev build new stream URLs) while Spotify and Apple Music let the player handle queue advancement after the initial share link is queued
 - CD always plays locally via mpv — it doesn't use the player service
 - AirPlay 2 only works with the **local** player: the Pi itself is the receiver (shairport-sync into the PipeWire tone chain), so with a network player there is nothing for it to play into — and Sonos/HEOS/WiiM speakers do AirPlay 2 natively anyway. See [airplay.md](airplay.md).
@@ -233,7 +234,7 @@ Sources provide content to the BS5c. Each source registers with the router and a
 | Apple Music | Sends Apple Music share URLs to player via `player_play(uri=...)`. Sonos uses patched ShareLink. Sonos only. | Player manages queue |
 | TIDAL | Sonos: sends TIDAL share URLs via `player_play(uri=...)` (ShareLink). BlueSound: resolves direct stream URLs via tidalapi `track.get_url()`, sends via `player_play(url=...)`. | Sonos: player manages queue. BlueSound: source manages queue (next/prev play new stream URLs) |
 | Plex | Builds direct stream URLs from Plex server. Sends to player via `player_play(url=...)`. Works with Sonos and BlueSound. | Source manages queue (next/prev build new URLs) |
-| Jellyfin | Builds direct stream URLs from a Jellyfin server (`/Audio/{id}/universal` — the server direct-plays or transcodes to MP3 depending on the file). Sends to player via `player_play(url=...)`. | Source manages queue (next/prev build new URLs) |
+| Jellyfin | Builds direct stream URLs from a Jellyfin server (`/Audio/{id}/universal` — the server direct-plays or transcodes to MP3 depending on the file). Sends to player via `player_play(url=..., headers=...)` — 12.1 wants the token in an `Authorization` header, not the URL. | Source manages queue (next/prev build new URLs) |
 | CD | Local mpv playback from USB CD/DVD drive. Metadata from MusicBrainz. No player service needed. | Source manages tracks (mpv chapters) |
 | USB | Auto-detects: streams track URLs to player if `url_stream` available, otherwise local mpv. Supports BeoMaster 5 library databases and plain USB drives. Works with both players or standalone. | Source manages queue |
 
@@ -295,9 +296,16 @@ once every five minutes).
 
 **Playback** — tracks are streamed from `/Audio/{id}/universal`, which lets the
 server direct-play anything already in a container the player understands (MP3,
-AAC/M4A, FLAC, WAV, Ogg) and transcode everything else to MP3 on the fly. That
-is why Jellyfin works on Sonos, BlueSound and HEOS alike, where Spotify and
-Apple Music don't.
+AAC/M4A, FLAC, WAV, Ogg) and transcode everything else to MP3 on the fly.
+
+The stream URL carries no credentials. Jellyfin 12.1 removed `api_key`
+query-parameter authentication, so the token travels in the
+`Authorization: MediaBrowser …` header instead: the source hands it to the
+player with the play command, and the local player passes it to mpv as
+`--http-header-fields-append` (the plain `--http-header-fields` option splits
+on commas, which the header value is full of — that turns into a 400). A
+networked speaker fetches the URL itself and cannot send a header, so it still
+gets `api_key` appended, which works only on servers older than 12.1.
 
 **Digit shortcuts** — a playlist named `5: Dinner` is reachable by pressing 5
 on the remote, exactly as with Spotify and Plex. Unnamed slots are auto-filled
@@ -310,7 +318,12 @@ from the top of the list.
 - Self-signed HTTPS is accepted — a reverse-proxied server on the LAN is as
   common as a plain HTTP one.
 - Artwork is fetched by the source and embedded as a data URI before being
-  handed to the UI, so a self-signed certificate can't break cover art.
+  handed to the UI, so a self-signed certificate can't break cover art. Image
+  URLs need no token — Jellyfin serves artwork unauthenticated.
+- The cached playlist file (`web/json/jellyfin_playlists.json`, served to the
+  UI over the LAN) no longer contains the access token, now that stream URLs
+  don't carry one. A cache written by an older build still does; the next
+  fetch spots it and does a full refresh.
 
 ## Spotify Setup
 

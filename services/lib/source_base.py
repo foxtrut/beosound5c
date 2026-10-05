@@ -303,7 +303,8 @@ class SourceBase:
             return None
 
     async def player_play(self, uri=None, url=None, track_uri=None, meta=None,
-                          radio=False, track_uris=None, action_ts=None) -> bool:
+                          radio=False, track_uris=None, action_ts=None,
+                          headers=None) -> bool:
         """Ask the player service to play a URI or URL.
         track_uri: Spotify track URI to start at within a playlist/album.
         meta: optional dict with display metadata (title, artist, album,
@@ -311,12 +312,18 @@ class SourceBase:
         radio: if True, treat URL as a continuous radio stream (Sonos uses
                x-rincon-mp3radio:// scheme instead of plain HTTP).
         track_uris: list of spotify:track:xxx URIs to queue individually
-                    (used for Liked Songs and other non-playlist collections)."""
+                    (used for Liked Songs and other non-playlist collections).
+        headers: HTTP headers the player must send when fetching *url*
+                 (Jellyfin 12.1 authenticates streams by header only).
+                 Honoured by the local player; a networked player fetches
+                 the URL itself and silently ignores them."""
         body = {}
         if uri:
             body["uri"] = uri
         if url:
             body["url"] = url
+        if headers:
+            body["headers"] = headers
         if track_uri:
             body["track_uri"] = track_uri
         if meta:

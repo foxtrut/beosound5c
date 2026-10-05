@@ -145,16 +145,17 @@ def main():
                     'tracks': cp.get('tracks', []),
                 }
             log(f"Loaded cache with {len(cache)} playlists")
-            # Stream URLs embed api_key; if the token has been revoked and
-            # re-issued the cached URLs 401 and the player stops on the
-            # first track. Drop the cache when the first URL we find no
-            # longer carries the current token.
-            cur_tok = tokens['access_token']
+            # Stream URLs used to embed api_key. They no longer do — the
+            # token travels in the Authorization header — but a cache
+            # written before that change still carries one, and Jellyfin
+            # 12.1 answers 401 to those. Drop the whole cache the first
+            # time we see one; an unchanged playlist is otherwise never
+            # re-fetched and the stale URLs would survive forever.
             for _pc in cache.values():
                 for _tr in _pc.get('tracks', []):
-                    _u = _tr.get('url', '')
-                    if _u and cur_tok not in _u:
-                        log("Access token changed - invalidating cache for full refresh")
+                    if 'api_key=' in (_tr.get('url') or ''):
+                        log("Cached stream URLs still embed api_key - "
+                            "invalidating cache for full refresh")
                         cache = {}
                         break
                 else:

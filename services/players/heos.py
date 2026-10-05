@@ -70,7 +70,7 @@ class HeosPlayerService(PlayerBase):
     # ── PlayerBase abstract methods ──
 
     async def play(self, uri=None, url=None, track_uri=None, meta=None,
-                   radio=False, track_uris=None) -> bool:
+                   radio=False, track_uris=None, headers=None) -> bool:
         if self._player is None:
             logger.error("Play failed: no HEOS player connected")
             return False

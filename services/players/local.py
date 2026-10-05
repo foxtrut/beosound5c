@@ -39,6 +39,22 @@ logging.basicConfig(
 logger = logging.getLogger('beo-player-local')
 
 
+def _mpv_command(url, headers=None):
+    """Build the mpv argv for *url*, carrying any auth headers.
+
+    ``--http-header-fields`` is a comma-separated list option, and
+    Jellyfin's ``Authorization: MediaBrowser Client="…", Token="…"``
+    value is full of commas — passing it there splits it into garbage
+    headers and the server answers 400. The ``-append`` form adds one
+    entry verbatim, so each header goes in its own option.
+    """
+    cmd = ['mpv', '--ao=pulse', url, '--no-video', '--no-terminal',
+           f'--input-ipc-server={IPC_SOCKET}']
+    for name, value in (headers or {}).items():
+        cmd.append(f'--http-header-fields-append={name}: {value}')
+    return cmd
+
+
 class LocalPlayer(PlayerBase):
     """Local player service with mpv + go-librespot backends."""
 
@@ -67,7 +83,7 @@ class LocalPlayer(PlayerBase):
     # ── PlayerBase abstract methods ──
 
     async def play(self, uri=None, url=None, track_uri=None, meta=None,
-                   radio=False, track_uris=None) -> bool:
+                   radio=False, track_uris=None, headers=None) -> bool:
         if uri:
             # Spotify share URL or native URI → go-librespot
             spotify_uri = share_url_to_uri(uri)
@@ -111,16 +127,15 @@ class LocalPlayer(PlayerBase):
             try:
                 env = os.environ.copy()
                 env.setdefault('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')
-                self._process = subprocess.Popen([
-                    'mpv', '--ao=pulse', url,
-                    '--no-video', '--no-terminal',
-                    f'--input-ipc-server={IPC_SOCKET}',
-                ], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, env=env)
+                self._process = subprocess.Popen(
+                    _mpv_command(url, headers),
+                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, env=env)
                 self._active_backend = 'mpv'
                 self._current_playback_state = 'playing'
                 self._current_url = url
                 self._watcher_task = asyncio.create_task(self._watch_process())
-                logger.info("Playing URL via mpv: %s", url)
+                logger.info("Playing URL via mpv: %s%s", url,
+                            f" (+{len(headers)} auth header)" if headers else "")
                 return True
             except Exception as e:
                 logger.error("mpv play failed: %s", e)
