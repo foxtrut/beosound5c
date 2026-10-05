@@ -118,6 +118,18 @@ STATION_STREAM = {
     "9610c01b-0601-11e8-ae97-52543be04c81": _dr_hls("p8"),
 }
 
+# Display-name overrides, by UUID. The PLAYING view truncates the title with
+# a CSS ellipsis, and "DR P4 Østjyllands Radio" came out as
+# "DR P4 Østjylland…" — the same width, with the channel's region half eaten.
+# The shorter name is what DR itself calls the channel.
+#
+# Display only: the station dict keeps the database's name, so play_by_name
+# still matches on either, and a favourite saved from here records the name
+# Radio Browser knows it by.
+STATION_NAME = {
+    "9610bbeb-0601-11e8-ae97-52543be04c81": "DR P4 Østjylland",
+}
+
 # Station artwork overrides, by UUID. The Radio Browser entries for DR's
 # playable MP3 streams carry dr.dk/favicon.ico — the corporate mark at
 # 64x64, the same picture for every channel, and nothing at all for P2.
@@ -601,6 +613,12 @@ class RadioService(SourceBase):
         return override[0] if override else station.get(
             "url_resolved", station.get("url", ""))
 
+    def _name_for(self, station: dict) -> str:
+        """The name to show — a shorter one where the database's runs past
+        what the UI can fit, otherwise the station's own name."""
+        return (STATION_NAME.get(station.get("stationuuid", ""))
+                or station.get("name", "Unknown"))
+
     def _codec_for(self, station: dict) -> tuple:
         """(codec, bitrate) of what actually plays. The Radio Browser entry
         describes its own stream, so where _stream_for overrides the URL the
@@ -633,7 +651,7 @@ class RadioService(SourceBase):
 
         return {
             "type": "station",
-            "name": s.get("name", "Unknown"),
+            "name": self._name_for(s),
             "id": s.get("stationuuid", ""),
             "stationuuid": s.get("stationuuid", ""),
             "url_resolved": self._stream_for(s),
@@ -1217,7 +1235,7 @@ class RadioService(SourceBase):
         artwork = (f"http://localhost:{self.port}/favicon"
                    f"?url={urllib.parse.quote(favicon, safe='')}") if favicon else ""
 
-        return {"title": station.get("name", ""), "artist": artist, "album": album,
+        return {"title": self._name_for(station), "artist": artist, "album": album,
                 "artwork": artwork}
 
     # ── Sveriges Radio now-playing ──

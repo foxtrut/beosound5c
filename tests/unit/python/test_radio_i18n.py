@@ -480,3 +480,31 @@ class TestAdoptRunningStream:
                             AsyncMock(side_effect=OSError("no route")))
         _run(svc._adopt_running_stream())
         assert registered == ["available"]
+
+
+class TestDisplayNames:
+    P4 = "9610bbeb-0601-11e8-ae97-52543be04c81"
+
+    def test_long_name_is_shortened_for_display(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        station = {"stationuuid": self.P4, "name": "DR P4 Østjyllands Radio"}
+        assert svc._name_for(station) == "DR P4 Østjylland"
+        assert svc._station_to_item({**station, "tags": ""})["name"] == "DR P4 Østjylland"
+        assert svc._build_meta({**station, "tags": ""})["title"] == "DR P4 Østjylland"
+
+    def test_other_stations_keep_their_name(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        assert svc._name_for({"stationuuid": "x", "name": "Skala FM"}) == "Skala FM"
+
+    def test_overrides_only_cover_curated_stations(self):
+        assert set(radio_service.STATION_NAME) <= set(radio_service.CURATED_DANMARK)
+
+    def test_play_by_name_still_matches_the_database_name(self, mock_config, monkeypatch):
+        """The override is display-only — the station dict keeps the name
+        Radio Browser knows, so a favourite saved from here and the voice
+        shortcut both still resolve."""
+        svc = _svc(mock_config, monkeypatch)
+        svc._favourites = [{"stationuuid": self.P4, "name": "DR P4 Østjyllands Radio",
+                            "url_resolved": "http://x"}]
+        found = _run(svc._find_station_by_name("østjylland"))
+        assert found is not None and found["stationuuid"] == self.P4
