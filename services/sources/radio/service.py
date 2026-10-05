@@ -58,13 +58,11 @@ CURATED_SVERIGE = [
     "8b00bcfc-4d94-11ea-b877-52543be04c81",  # Retro FM Skåne
 ]
 
-# Every DR entry here is an Icecast MP3 stream, NOT one of the channels'
-# "(AAC)" entries. Those are HLS, and HLS from DR does not play on this
-# device: ffmpeg resolves the master playlist and every variant below it
-# 404s or comes back empty, so mpv exits after ~2.5s with "No video or
-# audio streams selected". Verified against mpv 0.40 / ffmpeg 7.1 on the
-# device. The AAC entries' only advantage was artwork, and DR_LOGOS below
-# gets that without the stream.
+# The DR entries are the database's MP3 ones, but what actually plays and
+# what you see come from STATION_STREAM and STATION_ARTWORK below: DR's own
+# AAC 325k HLS and DR's own channel logos. The database's "(AAC)" entries
+# are no use for either — they point at a DR origin whose variant playlists
+# all 404, which is why they don't play.
 CURATED_DANMARK = [
     "960f5a18-0601-11e8-ae97-52543be04c81",  # DR P1
     "960f5af4-0601-11e8-ae97-52543be04c81",  # DR P2
@@ -82,6 +80,31 @@ CURATED_DANMARK = [
     "0d939aa0-cce8-4841-92fe-1a03d36da0d3",  # Classic Rock Danmark
     "632fe760-a124-4385-9061-6acb4bd14d0f",  # The Voice
 ]
+
+# Stream overrides, by UUID: DR's own AAC 325k HLS instead of the 128k
+# Icecast MP3 the Radio Browser entry carries.
+#
+# This has to be hardcoded because the "(AAC)" entries in the database point
+# at drliveradio1/2097651, whose master playlist advertises variants that all
+# 404 — that origin is broken at DR's end, which is what made those entries
+# unplayable. drliveradio2/2118698 serves the same channels and works. Each
+# URL below was played on the device with mpv for 12s and produced a steady
+# "aac 2ch 44100 Hz 325 kbps"; masterab.m3u8 rather than a fixed variant, so
+# ffmpeg picks the bitrate it can actually fetch.
+#
+# No entry for DR Nyheder (no slug on this origin answers) — it stays MP3.
+# If DR retires this origin the stream 404s and the channel goes silent, so
+# anything added here is play-tested on the device first.
+DR_HLS_BASE = "https://drliveradio2.akamaized.net/hls/live/2118698"
+STATION_STREAM = {
+    "960f5a18-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p1/masterab.m3u8",
+    "960f5af4-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p2/masterab.m3u8",
+    "960f5bcd-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p3/masterab.m3u8",
+    "9610bbeb-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p4ostjylland/masterab.m3u8",
+    "9610bcba-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p5kobenhavn/masterab.m3u8",
+    "9610bd91-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p6/masterab.m3u8",
+    "9610c01b-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p8/masterab.m3u8",
+}
 
 # Station artwork overrides, by UUID. The Radio Browser entries for DR's
 # playable MP3 streams carry dr.dk/favicon.ico — the corporate mark at
@@ -494,6 +517,12 @@ class RadioService(SourceBase):
         self._browse_stations = stations or []
         return {"path": path, "parent": parent, "name": name, "items": items}
 
+    def _stream_for(self, station: dict) -> str:
+        """The URL to play — a curated override where we have a better stream
+        than the Radio Browser entry, otherwise the entry's own URL."""
+        return (STATION_STREAM.get(station.get("stationuuid", ""))
+                or station.get("url_resolved", station.get("url", "")))
+
     def _artwork_for(self, station: dict) -> str:
         """The station's artwork URL — a curated override where we have a
         better logo than the Radio Browser favicon, otherwise the favicon."""
@@ -521,7 +550,7 @@ class RadioService(SourceBase):
             "name": s.get("name", "Unknown"),
             "id": s.get("stationuuid", ""),
             "stationuuid": s.get("stationuuid", ""),
-            "url_resolved": s.get("url_resolved", s.get("url", "")),
+            "url_resolved": self._stream_for(s),
             "favicon": self._artwork_for(s),
             "country": s.get("country", ""),
             "tags": tags,
@@ -943,7 +972,7 @@ class RadioService(SourceBase):
         return None
 
     async def _play_station(self, station: dict, action_ts=None):
-        url = station.get("url_resolved", station.get("url", ""))
+        url = self._stream_for(station)
         if not url:
             log.warning("No URL for station %s", station.get("name"))
             return

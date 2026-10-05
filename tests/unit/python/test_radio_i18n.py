@@ -266,3 +266,53 @@ class TestStationStrings:
         svc = _svc(mock_config, monkeypatch, language="auto")
         item = svc._station_to_item(self.STATION)
         assert item["subtitle"].startswith("news, pop")
+
+
+# ── Curated overrides ──
+# The Danish list plays DR's AAC HLS and shows DR's channel logos, neither of
+# which the Radio Browser entry carries, so both come from a UUID-keyed map.
+# A typo in a UUID there is silent — the station just keeps the database's
+# own stream or favicon — so these pin the wiring.
+
+from sources.radio import service as radio_service
+
+
+class TestCuratedOverrides:
+    def test_stream_overrides_cover_only_curated_stations(self):
+        assert set(radio_service.STATION_STREAM) <= set(radio_service.CURATED_DANMARK)
+
+    def test_artwork_overrides_cover_only_curated_stations(self):
+        assert set(radio_service.STATION_ARTWORK) <= set(radio_service.CURATED_DANMARK)
+
+    def test_no_override_points_at_the_broken_dr_origin(self):
+        """drliveradio1's master playlist advertises variants that all 404,
+        which is what made DR's AAC entries unplayable here."""
+        assert not any("drliveradio1" in u for u in radio_service.STATION_STREAM.values())
+
+    def test_stream_override_wins_over_the_database_url(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        uuid = "9610bbeb-0601-11e8-ae97-52543be04c81"  # DR P4 Østjylland
+        url = svc._stream_for({"stationuuid": uuid, "url_resolved": "http://old/A14H.mp3"})
+        assert url == radio_service.STATION_STREAM[uuid]
+
+    def test_station_without_override_keeps_its_own_url(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        s = {"stationuuid": "not-curated", "url_resolved": "http://example.com/x.mp3"}
+        assert svc._stream_for(s) == "http://example.com/x.mp3"
+        assert svc._artwork_for({**s, "favicon": "http://example.com/x.png"}) \
+            == "http://example.com/x.png"
+
+    def test_playback_uses_the_override(self, mock_config, monkeypatch):
+        """The regression this guards: _play_station read url_resolved
+        directly, so an override that only reached the browse item would
+        have left the old stream playing."""
+        svc = _svc(mock_config, monkeypatch)
+        uuid = "960f5a18-0601-11e8-ae97-52543be04c81"  # DR P1
+        played = []
+        monkeypatch.setattr(RadioService, "player_play",
+                            AsyncMock(side_effect=lambda url, **kw: played.append(url) or True))
+        monkeypatch.setattr(RadioService, "register", AsyncMock())
+        monkeypatch.setattr(RadioService, "post_media_update", AsyncMock())
+        _run(svc._play_station({"stationuuid": uuid, "name": "DR P1",
+                                "url_resolved": "http://live-icy.dr.dk/A/A03H.mp3"}))
+        assert played and played[0] == radio_service.STATION_STREAM[uuid]
