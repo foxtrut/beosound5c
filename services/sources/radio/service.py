@@ -22,6 +22,7 @@ from collections import OrderedDict
 from aiohttp import web, ClientSession
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from sources.radio import radio_i18n as i18n
 from lib.config import cfg
 from lib.source_base import SourceBase
 
@@ -300,6 +301,7 @@ class RadioService(SourceBase):
 
     async def _browse(self, path: str) -> dict:
         parts = path.split("/") if path else []
+        ui_lang = self._ui_lang()
 
         if not parts:
             return self._root_categories()
@@ -311,15 +313,15 @@ class RadioService(SourceBase):
                 "/json/stations/topvote?limit=100&hidebroken=true",
                 ttl=CACHE_TTL_STATIONS,
             )
-            return self._station_list("Popular", "popular", "", stations)
+            return self._station_list(i18n.t("popular", ui_lang), "popular", "", stations)
 
         if category == "sverige":
             stations = await self._fetch_curated("Sweden", CURATED_SVERIGE)
-            return self._station_list("Swedish", "sverige", "", stations)
+            return self._station_list(i18n.t("swedish", ui_lang), "sverige", "", stations)
 
         if category == "danmark":
             stations = await self._fetch_curated("Denmark", CURATED_DANMARK)
-            return self._station_list("Danish", "danmark", "", stations)
+            return self._station_list(i18n.t("danish", ui_lang), "danmark", "", stations)
 
         if category == "countries":
             if len(parts) == 1:
@@ -331,11 +333,11 @@ class RadioService(SourceBase):
                 return {
                     "path": "countries",
                     "parent": "",
-                    "name": "Countries",
+                    "name": i18n.t("countries", ui_lang),
                     "items": [
                         {
                             "type": "category",
-                            "name": c["name"],
+                            "name": i18n.country(c["name"], ui_lang),
                             "id": f"countries/{c['name']}",
                             "path": f"countries/{c['name']}",
                             "count": c.get("stationcount", 0),
@@ -348,7 +350,8 @@ class RadioService(SourceBase):
                 f"/json/stations/bycountry/{urllib.parse.quote(country)}?order=votes&limit=100&hidebroken=true",
                 ttl=CACHE_TTL_STATIONS,
             )
-            return self._station_list(country, f"countries/{country}", "countries", stations)
+            return self._station_list(i18n.country(country, ui_lang), f"countries/{country}",
+                                      "countries", stations)
 
         if category == "genres":
             if len(parts) == 1:
@@ -360,11 +363,11 @@ class RadioService(SourceBase):
                 return {
                     "path": "genres",
                     "parent": "",
-                    "name": "Genres",
+                    "name": i18n.t("genres", ui_lang),
                     "items": [
                         {
                             "type": "category",
-                            "name": t["name"].title(),
+                            "name": i18n.genre_label(t["name"], ui_lang),
                             "id": f"genres/{t['name']}",
                             "path": f"genres/{t['name']}",
                             "count": t.get("stationcount", 0),
@@ -377,7 +380,7 @@ class RadioService(SourceBase):
                 f"/json/stations/bytag/{urllib.parse.quote(tag)}?order=votes&limit=100&hidebroken=true",
                 ttl=CACHE_TTL_STATIONS,
             )
-            return self._station_list(tag.title(), f"genres/{tag}", "genres", stations)
+            return self._station_list(i18n.genre_label(tag, ui_lang), f"genres/{tag}", "genres", stations)
 
         if category == "languages":
             if len(parts) == 1:
@@ -389,11 +392,11 @@ class RadioService(SourceBase):
                 return {
                     "path": "languages",
                     "parent": "",
-                    "name": "Languages",
+                    "name": i18n.t("languages", ui_lang),
                     "items": [
                         {
                             "type": "category",
-                            "name": l["name"].title(),
+                            "name": i18n.language(l["name"], ui_lang),
                             "id": f"languages/{l['name']}",
                             "path": f"languages/{l['name']}",
                             "count": l.get("stationcount", 0),
@@ -406,38 +409,53 @@ class RadioService(SourceBase):
                 f"/json/stations/bylanguage/{urllib.parse.quote(lang)}?order=votes&limit=100&hidebroken=true",
                 ttl=CACHE_TTL_STATIONS,
             )
-            return self._station_list(lang.title(), f"languages/{lang}", "languages", stations)
+            return self._station_list(i18n.language(lang, ui_lang), f"languages/{lang}",
+                                      "languages", stations)
 
         if category == "favourites":
             self._browse_stations = list(self._favourites)
             return {
                 "path": "favourites",
                 "parent": "",
-                "name": "Favourites",
+                "name": i18n.t("favourites", ui_lang),
                 "items": [self._station_to_item(s) for s in self._favourites],
             }
 
-        return {"path": path, "parent": "", "name": "Unknown", "items": []}
+        return {"path": path, "parent": "", "name": i18n.t("unknown", ui_lang), "items": []}
+
+    def _ui_lang(self):
+        """config.json's top-level "language" — the same setting the arc menu
+        labels in services/router.py read. Looked up per request rather than
+        cached, so a language change takes effect without a restart."""
+        return cfg("language", default="auto")
 
     def _root_categories(self) -> dict:
+        ui_lang = self._ui_lang()
         return {
             "path": "",
             "parent": None,
-            "name": "Radio",
+            "name": i18n.t("radio", ui_lang),
             "items": [
-                {"type": "category", "name": "Popular", "id": "popular", "path": "popular",
-                 "icon": "star", "color": "#F9CA24"},
-                {"type": "category", "name": "Swedish", "id": "sverige", "path": "sverige",
-                 "image": FLAG_SVERIGE},
-                {"type": "category", "name": "Danish", "id": "danmark", "path": "danmark",
-                 "image": FLAG_DANMARK},
-                {"type": "category", "name": "Favourites", "id": "favourites", "path": "favourites",
+                {"type": "category", "name": i18n.t("favourites", ui_lang),
+                 "id": "favourites", "path": "favourites",
                  "icon": "heart", "color": "#FF6B6B"},
-                {"type": "category", "name": "Countries", "id": "countries", "path": "countries",
+                {"type": "category", "name": i18n.t("popular", ui_lang),
+                 "id": "popular", "path": "popular",
+                 "icon": "star", "color": "#F9CA24"},
+                {"type": "category", "name": i18n.t("danish", ui_lang),
+                 "id": "danmark", "path": "danmark",
+                 "image": FLAG_DANMARK},
+                {"type": "category", "name": i18n.t("swedish", ui_lang),
+                 "id": "sverige", "path": "sverige",
+                 "image": FLAG_SVERIGE},
+                {"type": "category", "name": i18n.t("countries", ui_lang),
+                 "id": "countries", "path": "countries",
                  "icon": "globe", "color": "#A29BFE"},
-                {"type": "category", "name": "Genres", "id": "genres", "path": "genres",
+                {"type": "category", "name": i18n.t("genres", ui_lang),
+                 "id": "genres", "path": "genres",
                  "icon": "music-notes", "color": "#FD79A8"},
-                {"type": "category", "name": "Languages", "id": "languages", "path": "languages",
+                {"type": "category", "name": i18n.t("languages", ui_lang),
+                 "id": "languages", "path": "languages",
                  "icon": "translate", "color": "#74B9FF"},
             ],
         }
@@ -449,8 +467,9 @@ class RadioService(SourceBase):
         return {"path": path, "parent": parent, "name": name, "items": items}
 
     def _station_to_item(self, s) -> dict:
+        ui_lang = self._ui_lang()
         tags = s.get("tags", "")
-        tag_list = [t.strip() for t in tags.split(",") if t.strip()][:3]
+        tag_list = [i18n.genre_tag(t, ui_lang) for t in tags.split(",") if t.strip()][:3]
         codec = s.get("codec", "")
         bitrate = s.get("bitrate", 0)
         codec_str = f"{codec} {bitrate}kbps" if codec and bitrate else codec or ""
@@ -459,7 +478,7 @@ class RadioService(SourceBase):
         if tag_list:
             subtitle_parts.append(", ".join(tag_list))
         elif s.get("country"):
-            subtitle_parts.append(s["country"])
+            subtitle_parts.append(i18n.country(s["country"], ui_lang))
         if codec_str:
             subtitle_parts.append(codec_str)
 
@@ -1017,9 +1036,10 @@ class RadioService(SourceBase):
                 "artwork": artwork,
             }
 
+        ui_lang = self._ui_lang()
         tags = station.get("tags", "")
-        tag_list = [t.strip() for t in tags.split(",") if t.strip()][:3]
-        country = station.get("country", "")
+        tag_list = [i18n.genre_tag(t, ui_lang) for t in tags.split(",") if t.strip()][:3]
+        country = i18n.country(station.get("country", ""), ui_lang)
         codec = station.get("codec", "")
         bitrate = station.get("bitrate", 0)
 

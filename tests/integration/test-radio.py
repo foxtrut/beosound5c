@@ -66,11 +66,15 @@ test("1. GET /status returns source=radio", test_status)
 def test_root_browse():
     data = get("/browse?path=")
     assert data["parent"] is None, "Root parent should be None"
-    names = [i["name"] for i in data["items"]]
-    # Required categories — additional curated lists (Swedish, Danish) are
+    # Assert on ids, not names: names are display strings the service
+    # translates per config.json's "language", and this test also runs
+    # against devices whose language isn't the one configured here.
+    ids = [i["id"] for i in data["items"]]
+    assert ids[0] == "favourites", f"Favourites should come first, got {ids}"
+    # Required categories — additional curated lists (sverige, danmark) are
     # allowed but not required so this test stays stable as more get added.
-    for expected in ["Popular", "Countries", "Genres", "Languages", "Favourites"]:
-        assert expected in names, f"Missing {expected}"
+    for expected in ["popular", "countries", "genres", "languages", "favourites"]:
+        assert expected in ids, f"Missing {expected}"
     for item in data["items"]:
         assert item["type"] == "category"
         # Categories with curated SVG flag images use 'image' instead of
@@ -82,7 +86,7 @@ test("2. Root browse: required categories present", test_root_browse)
 # ── 3. Popular stations ──
 def test_popular():
     data = get("/browse?path=popular")
-    assert data["name"] == "Popular"
+    assert data["path"] == "popular"
     assert data["parent"] == ""
     assert len(data["items"]) > 0, "Popular should have stations"
     station = data["items"][0]
@@ -96,7 +100,7 @@ test("3. Browse popular: returns stations with required fields", test_popular)
 # ── 4. Countries list ──
 def test_countries():
     data = get("/browse?path=countries")
-    assert data["name"] == "Countries"
+    assert data["path"] == "countries"
     assert len(data["items"]) > 10, f"Expected >10 countries, got {len(data['items'])}"
     for item in data["items"][:3]:
         assert item["type"] == "category"
@@ -148,7 +152,7 @@ test("9. Browse languages/english: returns stations", test_language_drill)
 # ── 10. Favourites structure ──
 def test_favourites():
     data = get("/browse?path=favourites")
-    assert data["name"] == "Favourites"
+    assert data["path"] == "favourites"
     assert isinstance(data["items"], list)
 test("10. Browse favourites: valid response", test_favourites)
 
@@ -318,7 +322,7 @@ test("21. API cache: cached browse is fast (<0.5s)", test_cache)
 # ── 22. Unknown browse path ──
 def test_unknown_path():
     data = get("/browse?path=nonexistent")
-    assert data["name"] == "Unknown"
+    assert data["path"] == "nonexistent"
     assert data["items"] == []
 test("22. Unknown browse path: empty result, no error", test_unknown_path)
 

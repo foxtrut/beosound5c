@@ -146,10 +146,10 @@ def build() -> dict[str, object]:
     # the service's {path, parent, name, items} envelope.
     files["radio_browse.json"] = {
         "": {"path": "", "parent": None, "name": "Radio", "items": [
-            {"type": "category", "name": "Popular", "id": "popular", "path": "popular",
-             "icon": "star", "color": "#F9CA24"},
             {"type": "category", "name": "Favourites", "id": "favourites", "path": "favourites",
              "icon": "heart", "color": "#FF6B6B"},
+            {"type": "category", "name": "Popular", "id": "popular", "path": "popular",
+             "icon": "star", "color": "#F9CA24"},
             {"type": "category", "name": "Genres", "id": "genres", "path": "genres",
              "icon": "music-notes", "color": "#FD79A8"},
         ]},

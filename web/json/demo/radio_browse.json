@@ -6,19 +6,19 @@
   "items": [
    {
     "type": "category",
-    "name": "Popular",
-    "id": "popular",
-    "path": "popular",
-    "icon": "star",
-    "color": "#F9CA24"
-   },
-   {
-    "type": "category",
     "name": "Favourites",
     "id": "favourites",
     "path": "favourites",
     "icon": "heart",
     "color": "#FF6B6B"
+   },
+   {
+    "type": "category",
+    "name": "Popular",
+    "id": "popular",
+    "path": "popular",
+    "icon": "star",
+    "color": "#F9CA24"
    },
    {
     "type": "category",
