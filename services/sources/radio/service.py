@@ -310,13 +310,45 @@ class RadioService(SourceBase):
         self._load_favourites()
         self._load_last_station()
 
-        await self.register("available")
+        await self._adopt_running_stream()
         # Pre-warm curated station caches so play_by_name is instant
         self._spawn(self._prewarm_curated(), name="prewarm_curated")
         self._sr_poll_task = asyncio.create_task(self._sr_poll_loop())
         log.info("Radio source ready (%d favourites, last=%s)",
                  len(self._favourites),
                  self._current_station.get("name") if self._current_station else "none")
+
+    async def _adopt_running_stream(self):
+        """Register as playing when the player is already streaming our last
+        station, rather than unconditionally as "available".
+
+        The player is a separate service, so restarting this one alone —
+        a deploy, or systemd's Restart=on-failure after a crash — leaves mpv
+        streaming. Registering "available" then puts the UI in a state the
+        room contradicts: sound out of the speakers and an empty PLAYING
+        view, until something happens to start playback again.
+
+        Adopts only when the player's current URL is the one this station
+        would play, so a stream some other source started is never claimed.
+        """
+        station = self._current_station
+        if station:
+            try:
+                state = await self.player_state()
+                if state in ("playing", "paused"):
+                    playing = await self.player_track_uri()
+                    if playing and playing == self._stream_for(station):
+                        self._playing_state = state
+                        await self.register(state)
+                        await self.post_media_update(
+                            **self._build_meta(station), state=state)
+                        self._start_state_poll()
+                        log.info("Adopted stream already playing: %s (%s)",
+                                 station.get("name"), state)
+                        return
+            except Exception as e:
+                log.warning("Could not reconcile with player on startup: %s", e)
+        await self.register("available")
 
     async def on_stop(self):
         if self._sr_poll_task:

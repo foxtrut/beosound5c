@@ -406,3 +406,77 @@ class TestLocalStationTiles:
                                 "favicon": "https://example.com/l.jpg?ver=149"})
         assert "ver%3D149" in meta["artwork"]
         assert meta["artwork"].count("?") == 1
+
+
+class TestAdoptRunningStream:
+    """Restarting this service alone leaves mpv streaming, because the player
+    is a separate service. Registering "available" regardless is what left
+    audio playing with an empty PLAYING view."""
+
+    STATION = {
+        "stationuuid": "9610bbeb-0601-11e8-ae97-52543be04c81",
+        "name": "DR P4 Østjyllands Radio", "tags": "regional radio",
+        "codec": "MP3", "bitrate": 128, "country": "Denmark",
+        "url_resolved": "http://live-icy.dr.dk/A/A14H.mp3",
+    }
+
+    def _svc_with_last_station(self, mock_config, monkeypatch, state, playing_url):
+        svc = _svc(mock_config, monkeypatch)
+        svc._current_station = dict(self.STATION)
+        monkeypatch.setattr(RadioService, "player_state", AsyncMock(return_value=state))
+        monkeypatch.setattr(RadioService, "player_track_uri",
+                            AsyncMock(return_value=playing_url))
+        monkeypatch.setattr(RadioService, "post_media_update", AsyncMock())
+        monkeypatch.setattr(RadioService, "_start_state_poll", lambda self: None)
+        registered = []
+        monkeypatch.setattr(RadioService, "register",
+                            AsyncMock(side_effect=lambda s, **kw: registered.append(s)))
+        return svc, registered
+
+    def test_adopts_our_own_stream(self, mock_config, monkeypatch):
+        our_url = radio_service.STATION_STREAM[self.STATION["stationuuid"]][0]
+        svc, registered = self._svc_with_last_station(
+            mock_config, monkeypatch, "playing", our_url)
+        _run(svc._adopt_running_stream())
+        assert registered == ["playing"]
+        assert svc._playing_state == "playing"
+        svc.post_media_update.assert_awaited()
+
+    def test_adopts_a_paused_stream_as_paused(self, mock_config, monkeypatch):
+        our_url = radio_service.STATION_STREAM[self.STATION["stationuuid"]][0]
+        svc, registered = self._svc_with_last_station(
+            mock_config, monkeypatch, "paused", our_url)
+        _run(svc._adopt_running_stream())
+        assert registered == ["paused"]
+
+    def test_does_not_claim_another_sources_stream(self, mock_config, monkeypatch):
+        """The player could be playing Jellyfin or Spotify — adopting that
+        would make radio claim someone else's playback."""
+        svc, registered = self._svc_with_last_station(
+            mock_config, monkeypatch, "playing", "http://jellyfin/Audio/abc/universal")
+        _run(svc._adopt_running_stream())
+        assert registered == ["available"]
+        assert svc._playing_state != "playing"
+
+    def test_stopped_player_registers_available(self, mock_config, monkeypatch):
+        our_url = radio_service.STATION_STREAM[self.STATION["stationuuid"]][0]
+        svc, registered = self._svc_with_last_station(
+            mock_config, monkeypatch, "stopped", our_url)
+        _run(svc._adopt_running_stream())
+        assert registered == ["available"]
+
+    def test_no_last_station_registers_available(self, mock_config, monkeypatch):
+        svc, registered = self._svc_with_last_station(
+            mock_config, monkeypatch, "playing", "whatever")
+        svc._current_station = None
+        _run(svc._adopt_running_stream())
+        assert registered == ["available"]
+
+    def test_unreachable_player_still_registers(self, mock_config, monkeypatch):
+        """A player that can't be reached must not stop the source coming up."""
+        svc, registered = self._svc_with_last_station(
+            mock_config, monkeypatch, "playing", "x")
+        monkeypatch.setattr(RadioService, "player_state",
+                            AsyncMock(side_effect=OSError("no route")))
+        _run(svc._adopt_running_stream())
+        assert registered == ["available"]
