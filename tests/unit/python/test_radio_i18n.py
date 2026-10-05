@@ -287,13 +287,42 @@ class TestCuratedOverrides:
     def test_no_override_points_at_the_broken_dr_origin(self):
         """drliveradio1's master playlist advertises variants that all 404,
         which is what made DR's AAC entries unplayable here."""
-        assert not any("drliveradio1" in u for u in radio_service.STATION_STREAM.values())
+        assert not any("drliveradio1" in url
+                       for url, _codec, _rate in radio_service.STATION_STREAM.values())
 
     def test_stream_override_wins_over_the_database_url(self, mock_config, monkeypatch):
         svc = _svc(mock_config, monkeypatch)
         uuid = "9610bbeb-0601-11e8-ae97-52543be04c81"  # DR P4 Østjylland
         url = svc._stream_for({"stationuuid": uuid, "url_resolved": "http://old/A14H.mp3"})
-        assert url == radio_service.STATION_STREAM[uuid]
+        assert url == radio_service.STATION_STREAM[uuid][0]
+
+    def test_subtitle_describes_the_stream_that_plays(self, mock_config, monkeypatch):
+        """The Radio Browser entry is the MP3 one, so its codec and bitrate
+        describe a stream we never play — the subtitle read "MP3 128kbps"
+        over AAC audio until the override carried them too."""
+        svc = _svc(mock_config, monkeypatch)
+        item = svc._station_to_item({
+            "stationuuid": "9610bbeb-0601-11e8-ae97-52543be04c81",
+            "name": "DR P4 Østjyllands Radio", "tags": "regional radio",
+            "codec": "MP3", "bitrate": 128, "country": "Denmark",
+        })
+        assert "AAC 320kbps" in item["subtitle"]
+        assert "MP3" not in item["subtitle"]
+        assert (item["codec"], item["bitrate"]) == ("AAC", 320)
+
+    def test_playing_view_describes_the_stream_that_plays(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        meta = svc._build_meta({
+            "stationuuid": "9610bbeb-0601-11e8-ae97-52543be04c81",
+            "name": "DR P4 Østjyllands Radio", "tags": "", "codec": "MP3",
+            "bitrate": 128, "country": "Denmark",
+        })
+        assert "AAC 320kbps" in meta["album"]
+
+    def test_station_without_override_keeps_its_own_codec(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        assert svc._codec_for({"stationuuid": "not-curated",
+                               "codec": "MP3", "bitrate": 192}) == ("MP3", 192)
 
     def test_station_without_override_keeps_its_own_url(self, mock_config, monkeypatch):
         svc = _svc(mock_config, monkeypatch)
@@ -315,7 +344,7 @@ class TestCuratedOverrides:
         monkeypatch.setattr(RadioService, "post_media_update", AsyncMock())
         _run(svc._play_station({"stationuuid": uuid, "name": "DR P1",
                                 "url_resolved": "http://live-icy.dr.dk/A/A03H.mp3"}))
-        assert played and played[0] == radio_service.STATION_STREAM[uuid]
+        assert played and played[0] == radio_service.STATION_STREAM[uuid][0]
 
 
 class TestLocalStationTiles:

@@ -96,14 +96,26 @@ CURATED_DANMARK = [
 # If DR retires this origin the stream 404s and the channel goes silent, so
 # anything added here is play-tested on the device first.
 DR_HLS_BASE = "https://drliveradio2.akamaized.net/hls/live/2118698"
+
+
+def _dr_hls(slug: str) -> tuple:
+    """(url, codec, bitrate) for one DR channel. The codec and bitrate travel
+    with the URL because the Radio Browser entry describes the MP3 stream we
+    are NOT playing — without them the UI reads "MP3 128kbps" over AAC audio.
+    320 is the top variant masterab.m3u8 offers; ffmpeg falls back to 262k if
+    it cannot fetch that one, so this is the nominal rate, not a measurement.
+    """
+    return (f"{DR_HLS_BASE}/{slug}/masterab.m3u8", "AAC", 320)
+
+
 STATION_STREAM = {
-    "960f5a18-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p1/masterab.m3u8",
-    "960f5af4-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p2/masterab.m3u8",
-    "960f5bcd-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p3/masterab.m3u8",
-    "9610bbeb-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p4ostjylland/masterab.m3u8",
-    "9610bcba-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p5kobenhavn/masterab.m3u8",
-    "9610bd91-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p6/masterab.m3u8",
-    "9610c01b-0601-11e8-ae97-52543be04c81": f"{DR_HLS_BASE}/p8/masterab.m3u8",
+    "960f5a18-0601-11e8-ae97-52543be04c81": _dr_hls("p1"),
+    "960f5af4-0601-11e8-ae97-52543be04c81": _dr_hls("p2"),
+    "960f5bcd-0601-11e8-ae97-52543be04c81": _dr_hls("p3"),
+    "9610bbeb-0601-11e8-ae97-52543be04c81": _dr_hls("p4ostjylland"),
+    "9610bcba-0601-11e8-ae97-52543be04c81": _dr_hls("p5kobenhavn"),
+    "9610bd91-0601-11e8-ae97-52543be04c81": _dr_hls("p6"),
+    "9610c01b-0601-11e8-ae97-52543be04c81": _dr_hls("p8"),
 }
 
 # Station artwork overrides, by UUID. The Radio Browser entries for DR's
@@ -553,8 +565,18 @@ class RadioService(SourceBase):
     def _stream_for(self, station: dict) -> str:
         """The URL to play — a curated override where we have a better stream
         than the Radio Browser entry, otherwise the entry's own URL."""
-        return (STATION_STREAM.get(station.get("stationuuid", ""))
-                or station.get("url_resolved", station.get("url", "")))
+        override = STATION_STREAM.get(station.get("stationuuid", ""))
+        return override[0] if override else station.get(
+            "url_resolved", station.get("url", ""))
+
+    def _codec_for(self, station: dict) -> tuple:
+        """(codec, bitrate) of what actually plays. The Radio Browser entry
+        describes its own stream, so where _stream_for overrides the URL the
+        entry's codec and bitrate describe something we never play."""
+        override = STATION_STREAM.get(station.get("stationuuid", ""))
+        if override:
+            return override[1], override[2]
+        return station.get("codec", ""), station.get("bitrate", 0)
 
     def _artwork_for(self, station: dict) -> str:
         """The station's artwork URL — a curated override where we have a
@@ -566,8 +588,7 @@ class RadioService(SourceBase):
         ui_lang = self._ui_lang()
         tags = s.get("tags", "")
         tag_list = [i18n.genre_tag(t, ui_lang) for t in tags.split(",") if t.strip()][:3]
-        codec = s.get("codec", "")
-        bitrate = s.get("bitrate", 0)
+        codec, bitrate = self._codec_for(s)
         codec_str = f"{codec} {bitrate}kbps" if codec and bitrate else codec or ""
 
         subtitle_parts = []
@@ -1148,8 +1169,7 @@ class RadioService(SourceBase):
         tags = station.get("tags", "")
         tag_list = [i18n.genre_tag(t, ui_lang) for t in tags.split(",") if t.strip()][:3]
         country = i18n.country(station.get("country", ""), ui_lang)
-        codec = station.get("codec", "")
-        bitrate = station.get("bitrate", 0)
+        codec, bitrate = self._codec_for(station)
 
         artist = ", ".join(tag_list) if tag_list else country
         album_parts = []
