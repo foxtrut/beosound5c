@@ -11,7 +11,7 @@ stay English whatever the language is.
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -316,3 +316,64 @@ class TestCuratedOverrides:
         _run(svc._play_station({"stationuuid": uuid, "name": "DR P1",
                                 "url_resolved": "http://live-icy.dr.dk/A/A03H.mp3"}))
         assert played and played[0] == radio_service.STATION_STREAM[uuid]
+
+
+class TestLocalStationTiles:
+    """The four stations Radio Browser has no usable artwork for get a tile
+    generated on the device, as a data: URI."""
+
+    TILED = {
+        "9610c1ca-0601-11e8-ae97-52543be04c81": "DR Nyheder",
+        "7a17dda6-45b5-11e8-8919-52543be04c81": "Classic FM",
+        "0d939aa0-cce8-4841-92fe-1a03d36da0d3": "Classic Rock Danmark",
+        "6397fc3c-fca0-11e9-bbf2-52543be04c81": "Radio4",
+    }
+
+    def test_each_tiled_station_has_a_data_uri(self):
+        for uuid in self.TILED:
+            art = radio_service.STATION_ARTWORK[uuid]
+            assert art.startswith("data:image/svg+xml,")
+
+    def test_tile_wins_over_a_broken_upstream_favicon(self, mock_config, monkeypatch):
+        """Radio4's favicon.ico is 78 bytes of the literal text
+        'data:image...' — the tile has to replace it, not defer to it."""
+        svc = _svc(mock_config, monkeypatch)
+        uuid = "6397fc3c-fca0-11e9-bbf2-52543be04c81"
+        art = svc._artwork_for({"stationuuid": uuid,
+                                "favicon": "https://radio4.dk/favicon.ico"})
+        assert art == radio_service.STATION_ARTWORK[uuid]
+
+    def test_tile_renders_as_svg(self):
+        from urllib.parse import unquote
+        svg = unquote(radio_service.STATION_ARTWORK[
+            "7a17dda6-45b5-11e8-8919-52543be04c81"].split(",", 1)[1])
+        assert svg.startswith("<svg") and svg.endswith("</svg>")
+        assert 'viewBox="0 0 800 800"' in svg
+        assert "CLASSIC" in svg and "FM" in svg
+
+    def test_proxy_serves_a_tile_back(self, mock_config, monkeypatch):
+        """The UI routes every artwork URL through /favicon, so the proxy has
+        to hand our own data: URIs back rather than reject them as not-URLs."""
+        svc = _svc(mock_config, monkeypatch)
+        uuid = "9610c1ca-0601-11e8-ae97-52543be04c81"
+        request = MagicMock()
+        request.query = {"url": radio_service.STATION_ARTWORK[uuid]}
+        resp = _run(svc._handle_favicon(request))
+        assert resp.status == 200
+        assert resp.content_type == "image/svg+xml"
+        assert resp.body.startswith(b"<svg")
+
+    def test_proxy_still_rejects_a_non_url(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        request = MagicMock()
+        request.query = {"url": "javascript:alert(1)"}
+        assert _run(svc._handle_favicon(request)).status == 400
+
+    def test_playing_artwork_escapes_the_favicon(self, mock_config, monkeypatch):
+        """The favicon is a query value. Unescaped, a favicon carrying its
+        own '?ver=...' (Radio Soft and Nova both do) arrived truncated."""
+        svc = _svc(mock_config, monkeypatch)
+        meta = svc._build_meta({"stationuuid": "x", "name": "Radio Soft",
+                                "favicon": "https://example.com/l.jpg?ver=149"})
+        assert "ver%3D149" in meta["artwork"]
+        assert meta["artwork"].count("?") == 1

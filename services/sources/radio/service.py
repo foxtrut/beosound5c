@@ -117,6 +117,26 @@ STATION_STREAM = {
 # icon, which is what these stations looked like before — no worse than
 # not having the map. DR Nyheder has no channel logo of its own.
 DR_LOGO_BASE = "https://www.dr.dk/lyd/_next/static/media"
+def _logo_tile(bg: str, rows: tuple) -> str:
+    """A station tile shaped like DR's own channel logos — a solid 800x800
+    square with a white wordmark — as a data: URI, the way the flag icons
+    below are. For the stations Radio Browser has nothing usable for: a
+    missing favicon, a broken one, or the operator's generic corporate mark
+    repeated across every channel. `rows` is (text, baseline, size, weight,
+    letter-spacing) per line.
+    """
+    text = "".join(
+        f'<text x="400" y="{y}" text-anchor="middle" fill="#fff"'
+        f' font-family="Helvetica Neue,Helvetica,Arial,sans-serif"'
+        f' font-size="{size}" font-weight="{weight}"'
+        f' letter-spacing="{spacing}">{label}</text>'
+        for label, y, size, weight, spacing in rows
+    )
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800">'
+           f'<path d="M0 0h800v800H0z" fill="{bg}"/>{text}</svg>')
+    return "data:image/svg+xml," + urllib.parse.quote(svg, safe="")
+
+
 STATION_ARTWORK = {
     "960f5a18-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p1.29c35f9c.svg",
     "960f5af4-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p2.041e766f.svg",
@@ -125,6 +145,19 @@ STATION_ARTWORK = {
     "9610bcba-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p5.1704bd78.svg",
     "9610bd91-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p6beat.4efb4634.svg",
     "9610c01b-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p8jazz.3748d702.svg",
+    # Nothing upstream to point at for these four: DR Nyheder has no channel
+    # logo of its own, Classic FM and Classic Rock Danmark have no favicon at
+    # all, and Radio4's "favicon.ico" is 78 bytes of the literal text
+    # "data:image...". Own tiles rather than their real marks — this is a
+    # legible placeholder, not a reproduction of anyone's logo.
+    "9610c1ca-0601-11e8-ae97-52543be04c81": _logo_tile("#14467d", (
+        ("DR", 390, 260, 700, 4), ("NYHEDER", 545, 124, 600, 8))),
+    "7a17dda6-45b5-11e8-8919-52543be04c81": _logo_tile("#7b1e2b", (
+        ("CLASSIC", 380, 152, 600, 4), ("FM", 570, 215, 700, 6))),
+    "0d939aa0-cce8-4841-92fe-1a03d36da0d3": _logo_tile("#2e2e32", (
+        ("CLASSIC", 365, 140, 600, 4), ("ROCK", 540, 200, 700, 6))),
+    "6397fc3c-fca0-11e9-bbf2-52543be04c81": _logo_tile("#0d6e6e", (
+        ("RADIO", 385, 165, 600, 4), ("4", 600, 265, 700, 0))),
 }
 
 # Inline SVG data URIs for flag category icons (Nordic cross, rounded corners)
@@ -614,6 +647,18 @@ class RadioService(SourceBase):
 
     async def _handle_favicon(self, request):
         url = request.query.get("url", "")
+
+        # Our own station tiles (STATION_ARTWORK) arrive as data: URIs —
+        # the UI routes every artwork URL through here, so serve them
+        # straight back instead of rejecting them as not-a-URL.
+        if url.startswith("data:image/"):
+            meta, _, payload = url.partition(",")
+            content_type = meta[len("data:"):].split(";")[0]
+            body = urllib.parse.unquote(payload).encode()
+            return web.Response(body=body, content_type=content_type, headers={
+                **self._cors_headers(), "Cache-Control": "public, max-age=86400"
+            })
+
         if not url or not url.startswith(("http://", "https://")):
             return web.Response(status=400, headers=self._cors_headers())
 
@@ -1117,7 +1162,8 @@ class RadioService(SourceBase):
         album = " · ".join(album_parts)
 
         favicon = self._artwork_for(station)
-        artwork = f"http://localhost:{self.port}/favicon?url={favicon}" if favicon else ""
+        artwork = (f"http://localhost:{self.port}/favicon"
+                   f"?url={urllib.parse.quote(favicon, safe='')}") if favicon else ""
 
         return {"title": station.get("name", ""), "artist": artist, "album": album,
                 "artwork": artwork}
