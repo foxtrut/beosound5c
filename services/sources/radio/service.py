@@ -58,20 +58,21 @@ CURATED_SVERIGE = [
     "8b00bcfc-4d94-11ea-b877-52543be04c81",  # Retro FM Skåne
 ]
 
-# The DR entries are deliberately the channels' "(AAC)" twins. They carry
-# DR's own 800x800 channel logo as an SVG, where the plain entries carry
-# dr.dk/favicon.ico — the corporate mark at 64x64, identical for every
-# channel — and they stream HLS at 324k instead of 128k Icecast. P5 is the
-# København feed, which is the same stream the untagged "DR P5" entry had.
-# DR Nyheder has no such twin, so it keeps the generic favicon.
+# Every DR entry here is an Icecast MP3 stream, NOT one of the channels'
+# "(AAC)" entries. Those are HLS, and HLS from DR does not play on this
+# device: ffmpeg resolves the master playlist and every variant below it
+# 404s or comes back empty, so mpv exits after ~2.5s with "No video or
+# audio streams selected". Verified against mpv 0.40 / ffmpeg 7.1 on the
+# device. The AAC entries' only advantage was artwork, and DR_LOGOS below
+# gets that without the stream.
 CURATED_DANMARK = [
-    "28b58640-e317-4778-9bba-a1992f8f0bf7",  # DR P1 (AAC 324k)
-    "4b7fdc14-64c5-4bf9-8924-615e81b812dc",  # DR P2 (AAC 324k)
-    "b0f1b100-23b5-4c7b-bdb1-a2c68006d6bf",  # DR P3 (AAC 324k)
-    "4c288b10-8af2-40ff-8c11-932730a45fc2",  # DR P4 Østjylland (AAC 324k)
-    "65490fd6-c55b-4704-9638-35445a4c4f1a",  # DR P5 København (AAC 324k)
-    "2d422514-5893-4845-808b-1292447d3144",  # DR P6 BEAT (AAC 324k)
-    "9298e58e-3dd2-418c-bd39-6798f59b8b10",  # DR P8 Jazz (AAC 324k)
+    "960f5a18-0601-11e8-ae97-52543be04c81",  # DR P1
+    "960f5af4-0601-11e8-ae97-52543be04c81",  # DR P2
+    "960f5bcd-0601-11e8-ae97-52543be04c81",  # DR P3
+    "9610bbeb-0601-11e8-ae97-52543be04c81",  # DR P4 Østjylland
+    "9610bcba-0601-11e8-ae97-52543be04c81",  # DR P5
+    "9610bd91-0601-11e8-ae97-52543be04c81",  # DR P6 BEAT
+    "9610c01b-0601-11e8-ae97-52543be04c81",  # DR P8 Jazz
     "9610c1ca-0601-11e8-ae97-52543be04c81",  # DR Nyheder
     "963cba5e-0601-11e8-ae97-52543be04c81",  # Radio Soft
     "1eb0a70c-2cc1-11e9-a35e-52543be04c81",  # Nova 100% Dansk
@@ -81,6 +82,27 @@ CURATED_DANMARK = [
     "0d939aa0-cce8-4841-92fe-1a03d36da0d3",  # Classic Rock Danmark
     "632fe760-a124-4385-9061-6acb4bd14d0f",  # The Voice
 ]
+
+# Station artwork overrides, by UUID. The Radio Browser entries for DR's
+# playable MP3 streams carry dr.dk/favicon.ico — the corporate mark at
+# 64x64, the same picture for every channel, and nothing at all for P2.
+# DR's own channel logos are 800x800 SVGs, served to DR LYD and pointed at
+# by the "(AAC)" entries we can't use for audio; these are those URLs.
+#
+# They are Next.js build artifacts, so the hash changes when DR rebuilds
+# the site and the URL starts 404ing. That degrades to the generic radio
+# icon, which is what these stations looked like before — no worse than
+# not having the map. DR Nyheder has no channel logo of its own.
+DR_LOGO_BASE = "https://www.dr.dk/lyd/_next/static/media"
+STATION_ARTWORK = {
+    "960f5a18-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p1.29c35f9c.svg",
+    "960f5af4-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p2.041e766f.svg",
+    "960f5bcd-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p3.28743ad0.svg",
+    "9610bbeb-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p4.a9a465ed.svg",
+    "9610bcba-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p5.1704bd78.svg",
+    "9610bd91-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p6beat.4efb4634.svg",
+    "9610c01b-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p8jazz.3748d702.svg",
+}
 
 # Inline SVG data URIs for flag category icons (Nordic cross, rounded corners)
 FLAG_SVERIGE = "data:image/svg+xml,%3Csvg viewBox='0 0 128 128' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='128' height='128' rx='20' fill='%23005293'/%3E%3Crect y='52' width='128' height='24' fill='%23FECC02'/%3E%3Crect x='40' y='0' width='24' height='128' fill='%23FECC02'/%3E%3C/svg%3E"
@@ -472,6 +494,12 @@ class RadioService(SourceBase):
         self._browse_stations = stations or []
         return {"path": path, "parent": parent, "name": name, "items": items}
 
+    def _artwork_for(self, station: dict) -> str:
+        """The station's artwork URL — a curated override where we have a
+        better logo than the Radio Browser favicon, otherwise the favicon."""
+        return (STATION_ARTWORK.get(station.get("stationuuid", ""))
+                or station.get("favicon", ""))
+
     def _station_to_item(self, s) -> dict:
         ui_lang = self._ui_lang()
         tags = s.get("tags", "")
@@ -494,7 +522,7 @@ class RadioService(SourceBase):
             "id": s.get("stationuuid", ""),
             "stationuuid": s.get("stationuuid", ""),
             "url_resolved": s.get("url_resolved", s.get("url", "")),
-            "favicon": s.get("favicon", ""),
+            "favicon": self._artwork_for(s),
             "country": s.get("country", ""),
             "tags": tags,
             "codec": codec,
@@ -1059,7 +1087,7 @@ class RadioService(SourceBase):
             album_parts.append(codec)
         album = " · ".join(album_parts)
 
-        favicon = station.get("favicon", "")
+        favicon = self._artwork_for(station)
         artwork = f"http://localhost:{self.port}/favicon?url={favicon}" if favicon else ""
 
         return {"title": station.get("name", ""), "artist": artist, "album": album,
