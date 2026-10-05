@@ -129,6 +129,7 @@ STATION_STREAM = {
 STATION_NAME = {
     "9610bbeb-0601-11e8-ae97-52543be04c81": "DR P4 Østjylland",
     "632fe760-a124-4385-9061-6acb4bd14d0f": "The Voice",
+    "0d939aa0-cce8-4841-92fe-1a03d36da0d3": "Classic Rock DK",
 }
 
 # Station artwork overrides, by UUID. The Radio Browser entries for DR's
