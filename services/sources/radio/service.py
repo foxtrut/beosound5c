@@ -62,7 +62,7 @@ CURATED_DANMARK = [
     "960f5a18-0601-11e8-ae97-52543be04c81",  # DR P1
     "960f5af4-0601-11e8-ae97-52543be04c81",  # DR P2
     "b0f1b100-23b5-4c7b-bdb1-a2c68006d6bf",  # DR P3 (AAC 324k)
-    "960f5358-0601-11e8-ae97-52543be04c81",  # DR P4 København
+    "4c288b10-8af2-40ff-8c11-932730a45fc2",  # DR P4 Østjylland (AAC 324k)
     "9610bcba-0601-11e8-ae97-52543be04c81",  # DR P5
     "9610bd91-0601-11e8-ae97-52543be04c81",  # DR P6 BEAT
     "9298e58e-3dd2-418c-bd39-6798f59b8b10",  # DR P8 Jazz (AAC 324k)
