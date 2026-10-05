@@ -64,3 +64,131 @@ async def test_fetch_refuses_oversized_body(monkeypatch):
     monkeypatch.setattr(calendar_service, "MAX_ICS_BYTES", len(BODY) // 2)
     with pytest.raises(RuntimeError, match="larger than"):
         await _fetch()
+
+
+# ── Clock handling ───────────────────────────────────────────────────────────
+#
+# The device has no battery-backed clock. At boot it briefly believes it is
+# whatever day it was last switched off, and an agenda built in that window
+# is weeks stale — which is exactly what the user sees, because they look at
+# the screen right after switching on. These pin both halves of the fix:
+# waiting for NTP before the first fetch, and noticing afterwards when the
+# clock is corrected or midnight passes.
+
+import types
+from datetime import date, timedelta
+
+
+class _FakeClock:
+    """A clock that only moves when the service sleeps."""
+
+    def __init__(self, jump_at_sleep=None, jump=0.0):
+        self.wall = 1_800_000_000.0
+        self.mono = 1_000.0
+        self.sleeps = 0
+        self._jump_at = jump_at_sleep
+        self._jump = jump
+
+    def time(self):
+        return self.wall
+
+    def monotonic(self):
+        return self.mono
+
+    def shim_asyncio(self):
+        """An `asyncio` stand-in whose sleep advances this clock instantly."""
+        async def sleep(duration):
+            self.sleeps += 1
+            self.mono += duration
+            self.wall += duration
+            if self._jump_at is not None and self.sleeps == self._jump_at:
+                self.wall += self._jump      # NTP correcting the clock
+            await asyncio.sleep(0)
+        return types.SimpleNamespace(sleep=sleep,
+                                     CancelledError=asyncio.CancelledError)
+
+
+def _service_with_clock(monkeypatch, clock):
+    svc = CalendarService()
+    monkeypatch.setattr(calendar_service, "time", clock)
+    monkeypatch.setattr(calendar_service, "asyncio", clock.shim_asyncio())
+    return svc
+
+
+class TestClockSynced:
+    def test_synced_once_the_marker_appears(self, monkeypatch, tmp_path):
+        marker = tmp_path / "synchronized"
+        monkeypatch.setattr(calendar_service, "TIMESYNC_MARKER", str(marker))
+        svc = CalendarService()
+        assert svc._clock_is_synced() is False
+        marker.touch()
+        assert svc._clock_is_synced() is True
+
+    def test_host_without_timesyncd_is_trusted(self, monkeypatch, tmp_path):
+        """A developer Mac has no /run/systemd — nothing to wait for."""
+        monkeypatch.setattr(calendar_service, "TIMESYNC_MARKER",
+                            str(tmp_path / "absent" / "synchronized"))
+        assert CalendarService()._clock_is_synced() is True
+
+
+@pytest.mark.asyncio
+async def test_wait_for_clock_returns_when_marker_appears(monkeypatch, tmp_path):
+    marker = tmp_path / "synchronized"
+    monkeypatch.setattr(calendar_service, "TIMESYNC_MARKER", str(marker))
+    clock = _FakeClock()
+    svc = _service_with_clock(monkeypatch, clock)
+
+    original_sleep = calendar_service.asyncio.sleep
+
+    async def sleep_then_sync(duration):
+        await original_sleep(duration)
+        if clock.sleeps == 2:
+            marker.touch()          # NTP arrives on the second poll
+    monkeypatch.setattr(calendar_service.asyncio, "sleep", sleep_then_sync)
+
+    await svc._wait_for_clock()
+    assert clock.sleeps == 2
+
+
+@pytest.mark.asyncio
+async def test_wait_for_clock_gives_up_rather_than_hanging(monkeypatch, tmp_path):
+    """No internet must not mean no calendar at all."""
+    monkeypatch.setattr(calendar_service, "TIMESYNC_MARKER",
+                        str(tmp_path / "synchronized"))
+    clock = _FakeClock()
+    svc = _service_with_clock(monkeypatch, clock)
+    await svc._wait_for_clock()
+    assert clock.mono - 1_000.0 >= calendar_service.CLOCK_WAIT_TIMEOUT
+
+
+@pytest.mark.asyncio
+async def test_refresh_waits_the_full_interval_when_nothing_changes(monkeypatch):
+    clock = _FakeClock()
+    svc = _service_with_clock(monkeypatch, clock)
+    svc._agenda_date = date.today()
+    start = clock.mono
+    await svc._wait_for_refresh()
+    assert clock.mono - start >= calendar_service.REFRESH_INTERVAL
+
+
+@pytest.mark.asyncio
+async def test_refresh_wakes_early_when_the_clock_is_corrected(monkeypatch):
+    """The boot-time NTP jump: wall time moves, elapsed time does not."""
+    clock = _FakeClock(jump_at_sleep=2, jump=3 * 7 * 24 * 3600)
+    svc = _service_with_clock(monkeypatch, clock)
+    svc._agenda_date = date.today()
+    start = clock.mono
+    await svc._wait_for_refresh()
+    assert clock.mono - start < calendar_service.REFRESH_INTERVAL
+    assert clock.sleeps == 2
+
+
+@pytest.mark.asyncio
+async def test_refresh_wakes_early_when_the_date_rolls_over(monkeypatch):
+    """Left on past midnight, 'today' and 'tomorrow' are both wrong."""
+    clock = _FakeClock()
+    svc = _service_with_clock(monkeypatch, clock)
+    svc._agenda_date = date.today() - timedelta(days=1)
+    start = clock.mono
+    await svc._wait_for_refresh()
+    assert clock.mono - start < calendar_service.REFRESH_INTERVAL

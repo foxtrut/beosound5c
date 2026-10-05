@@ -64,6 +64,16 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 REFRESH_INTERVAL = 15 * 60      # Google's export is cached upstream anyway
+# The device has no battery-backed clock: at boot the kernel starts at 1970
+# and fake-hwclock restores the time of the last shutdown, so for the first
+# few seconds "today" is whatever day the device was last switched off. An
+# agenda built then is weeks stale, and the user sees it precisely because
+# they look at the screen right after switching on.
+TIMESYNC_MARKER = "/run/systemd/timesync/synchronized"
+CLOCK_WAIT_TIMEOUT = 180        # give up waiting for NTP; a stale agenda beats none
+CLOCK_POLL_INTERVAL = 2
+CLOCK_CHECK_INTERVAL = 30       # how often the idle wait re-checks the clock
+CLOCK_JUMP_TOLERANCE = 10       # wall-vs-monotonic drift that counts as a jump
 FETCH_TIMEOUT = 30              # a year of a busy calendar is a big file
 MAX_ICS_BYTES = 8 * 1024 * 1024  # refuse to buffer a runaway response
 DEFAULT_DAYS_AHEAD = 14
@@ -95,6 +105,7 @@ class CalendarService(SourceBase):
         self._calendars = []
         self._days_ahead = DEFAULT_DAYS_AHEAD
         self._tz = ZoneInfo("UTC")
+        self._agenda_date = None    # local date the current agenda was built for
 
     # ── Lifecycle ──
 
@@ -179,6 +190,7 @@ class CalendarService(SourceBase):
     # ── Fetch ──
 
     async def _refresh_loop(self):
+        await self._wait_for_clock()
         while True:
             try:
                 await self._fetch_all()
@@ -186,7 +198,67 @@ class CalendarService(SourceBase):
                 return
             except Exception as e:
                 log.error("Refresh failed: %s", e)
-            await asyncio.sleep(REFRESH_INTERVAL)
+            try:
+                await self._wait_for_refresh()
+            except asyncio.CancelledError:
+                return
+
+    def _clock_is_synced(self):
+        """Has the system clock been set from the network yet?
+
+        systemd-timesyncd creates TIMESYNC_MARKER once it has synchronised.
+        On a host that doesn't run it (a developer Mac) the directory itself
+        is missing — there is nothing to wait for, so trust the clock.
+        """
+        if os.path.exists(TIMESYNC_MARKER):
+            return True
+        return not os.path.isdir(os.path.dirname(TIMESYNC_MARKER))
+
+    async def _wait_for_clock(self):
+        """Hold off the first fetch until the date can be trusted.
+
+        Capped: if NTP never arrives (no internet), fetch anyway rather than
+        showing nothing at all — the loop below corrects the agenda as soon
+        as the clock is set.
+        """
+        if self._clock_is_synced():
+            return
+        log.info("Waiting for the system clock to be synchronised…")
+        waited = 0
+        while waited < CLOCK_WAIT_TIMEOUT:
+            await asyncio.sleep(CLOCK_POLL_INTERVAL)
+            waited += CLOCK_POLL_INTERVAL
+            if self._clock_is_synced():
+                log.info("Clock synchronised after %ds — today is %s",
+                         waited, datetime.now(self._tz).date())
+                return
+        log.warning("Clock still not synchronised after %ds — fetching anyway",
+                    CLOCK_WAIT_TIMEOUT)
+
+    async def _wait_for_refresh(self):
+        """Idle until the agenda needs rebuilding.
+
+        Normally that is REFRESH_INTERVAL later, but two things make the
+        current agenda wrong before then, and both are invisible to a plain
+        sleep: the clock being corrected underneath us (boot-time NTP), and
+        midnight passing, which moves "today" and "tomorrow".
+        """
+        deadline = time.monotonic() + REFRESH_INTERVAL
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return
+            wall_before, mono_before = time.time(), time.monotonic()
+            await asyncio.sleep(min(CLOCK_CHECK_INTERVAL, remaining))
+            drift = ((time.time() - wall_before)
+                     - (time.monotonic() - mono_before))
+            if abs(drift) > CLOCK_JUMP_TOLERANCE:
+                log.info("System clock jumped %+.0fs — rebuilding agenda", drift)
+                return
+            if self._agenda_date and datetime.now(self._tz).date() != self._agenda_date:
+                log.info("Date is now %s — rebuilding agenda",
+                         datetime.now(self._tz).date())
+                return
 
     async def _fetch_all(self):
         now = datetime.now(self._tz)
@@ -263,6 +335,7 @@ class CalendarService(SourceBase):
         events = events[:MAX_EVENTS]
 
         today = now.date()
+        self._agenda_date = today
         days, index = [], {}
         self._live_windows = []
         for occ in events:
