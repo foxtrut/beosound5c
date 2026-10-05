@@ -43,10 +43,34 @@ curl 'https://de1.api.radio-browser.info/json/stations/byname/P1?limit=5' | pyth
 curl 'https://de1.api.radio-browser.info/json/stations/byuuid/960c660b-0601-11e8-ae97-52543be04c81'
 ```
 
-### Adding/removing via remote
+### Adding and removing
 
-- **RED button:** Toggle current station as favourite (add if not present, remove if present)
-- **BLUE button:** Remove current station from favourites
+**From the Config UI** — `http://<device>/softarc/config.html`, the radio
+favourites card. Pick a station out of the browse hierarchy, or enter a
+stream URL by hand under *custom*. Either way the UI posts `add_favourite`
+to the service, which writes the file straight away.
+
+**By editing the file**, then `sudo systemctl restart beo-source-radio`.
+
+**Over HTTP**, which is what the two commands below are for:
+
+```bash
+# Toggle whatever is playing right now
+curl -s -X POST localhost:8779/command \
+  -H 'Content-Type: application/json' -d '{"command":"toggle_favourite"}'
+
+# Add a specific station (the Config UI's path)
+curl -s -X POST localhost:8779/command -H 'Content-Type: application/json' \
+  -d '{"command":"add_favourite","station":{"stationuuid":"...","name":"...","url_resolved":"..."}}'
+```
+
+There is **no remote-button shortcut for favourites.** A colour button only
+reaches this source when it is bound to a station under
+`radio.station_buttons`, and a bound button *plays* that station — it does
+not toggle a favourite. Unbound, the router keeps the colour buttons for
+itself: RED → Home Assistant, BLUE → JOIN, GREEN/YELLOW → balance. The
+digit buttons are the remote's only favourites feature, and they play
+rather than edit.
 
 ## Sveriges Radio Now-Playing
 
