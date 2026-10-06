@@ -45,7 +45,11 @@ def player():
 
 
 def _reads(player, samples):
-    """Feed _mpv_get from a list of (duration, time-pos, pause) tuples."""
+    """Feed _mpv_get from (duration, time-pos, pause[, seekable]) tuples.
+
+    Seekability defaults to True — the ordinary case of a file or a Jellyfin
+    stream; the live-stream tests pass it explicitly.
+    """
     seq = list(samples)
     state = {}
 
@@ -60,6 +64,9 @@ def _reads(player, samples):
             return state['cur'][1]
         if prop == 'pause':
             return state['cur'][2]
+        if prop == 'seekable':
+            cur = state['cur']
+            return cur[3] if len(cur) > 3 else True
         return None
 
     player._mpv_get = fake_get
@@ -114,6 +121,23 @@ class TestProgressLoop:
     def test_ignores_a_position_mpv_has_not_parsed_yet(self, player):
         calls = _run(player, [(322.4, None, False)])
         assert calls == []
+
+    def test_says_nothing_about_a_live_stream(self, player):
+        """DR's HLS radio reports a duration — the sliding window, with the
+        position tracking the live edge — so the length alone cannot tell a
+        track from a stream. mpv answers seekable=False for the stream and
+        True for a Jellyfin track, and that is what decides it."""
+        calls = _run(player, [(129.7, 113.5, False, False),
+                              (129.7, 114.5, False, False)])
+        assert calls == []
+
+    def test_waits_until_mpv_knows(self, player):
+        """seekable is None until the stream is open — not a live stream,
+        just not known yet."""
+        calls = _run(player, [(159.0, 1.0, False, None),
+                              (159.0, 2.0, False, True)])
+        assert len(calls) == 1
+        assert calls[0].kwargs["duration_ms"] == 159000
 
     def test_stops_when_the_backend_is_no_longer_mpv(self, player):
         player._active_backend = 'librespot'

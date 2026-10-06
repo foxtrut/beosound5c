@@ -527,8 +527,18 @@ class LocalPlayer(PlayerBase):
                 duration = await self._mpv_get('duration')
                 position = await self._mpv_get('time-pos')
                 paused = await self._mpv_get('pause')
+                seekable = await self._mpv_get('seekable')
+                if seekable is not True:
+                    # A live stream has no length to be a fraction of, but
+                    # mpv still reports a duration for one: on DR's HLS radio
+                    # it is the sliding window (129s, with the position
+                    # tracking the live edge), which drew a progress bar that
+                    # meant nothing. Seekability is the honest test — a
+                    # Jellyfin track answers True, a live stream False — and
+                    # it stays None until mpv has opened the stream.
+                    continue
                 if not isinstance(duration, (int, float)) or duration <= 0:
-                    continue   # live stream, or mpv hasn't parsed it yet
+                    continue   # mpv hasn't parsed the length yet
                 if not isinstance(position, (int, float)):
                     continue
                 now = time.monotonic()
