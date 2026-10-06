@@ -432,6 +432,7 @@ class JellyfinService(DigitPlaylistMixin, SourceBase):
         await self.post_media_update(
             title=track.get("name", ""),
             artist=track.get("artist", ""),
+            album=track.get("album", ""),
             artwork=artwork,
             state="playing",
             reason="track_change",

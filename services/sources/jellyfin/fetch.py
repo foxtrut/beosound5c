@@ -49,13 +49,19 @@ def change_signature(item):
     return f"{stamp}:{item.get('ChildCount', '')}"
 
 
-def convert_track(client, item, fallback_artist=None, fallback_image=None):
+def convert_track(client, item, fallback_artist=None, fallback_image=None,
+                  fallback_album=None):
     artist = track_artist(item)
     if artist == 'Unknown' and fallback_artist:
         artist = fallback_artist
+    # ``Album`` is a base property on audio items, always serialized — it is
+    # not an ItemFields value, so it must not be added to a Fields query.
+    # Tracks reached through an album carry the album's own name as a
+    # fallback for the odd item that has none of its own.
     return {
         'name': item.get('Name') or 'Unknown',
         'artist': artist,
+        'album': item.get('Album') or fallback_album or '',
         'id': str(item.get('Id')),
         'url': client.stream_url(item.get('Id')),
         'image': client.image_url(item) or fallback_image,
@@ -81,7 +87,8 @@ def fetch_album_tracks(client, album):
     album_artist = album.get('AlbumArtist') or 'Unknown'
     album_image = client.image_url(album)
     return [convert_track(client, t, fallback_artist=album_artist,
-                          fallback_image=album_image)
+                          fallback_image=album_image,
+                          fallback_album=album.get('Name') or '')
             for t in items if t.get('MediaType') in (None, '', 'Audio')]
 
 
@@ -150,16 +157,25 @@ def main():
             # first track. Drop the cache when the first URL we find no
             # longer carries the current token.
             cur_tok = tokens['access_token']
+            stale = None
             for _pc in cache.values():
                 for _tr in _pc.get('tracks', []):
                     _u = _tr.get('url', '')
                     if _u and cur_tok not in _u:
-                        log("Access token changed - invalidating cache for full refresh")
-                        cache = {}
+                        stale = "access token changed"
+                    elif 'album' not in _tr:
+                        # Written before tracks carried an album name. The
+                        # change signature only moves when a playlist's
+                        # contents change, so without this the album stays
+                        # missing on everything already cached.
+                        stale = "cached tracks predate the album field"
+                    if stale:
                         break
-                else:
-                    continue
-                break
+                if stale:
+                    break
+            if stale:
+                log(f"Invalidating cache for full refresh - {stale}")
+                cache = {}
         except Exception as e:
             log(f"Could not load cache: {e}")
 
