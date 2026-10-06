@@ -8,6 +8,13 @@
  * extrapolates from (anchorSec, anchorAt) while playing and freezes when it
  * isn't; every new media update re-anchors it.
  *
+ * Two kinds of input re-anchor the model:
+ *   update(media)         a full media payload (media_update on the router WS)
+ *   applyProgress(event)  position/duration only (media_progress), sent by a
+ *                         player whose source owns the metadata — everything
+ *                         playing through mpv, where the length is known to
+ *                         the player and to nobody else
+ *
  * Rendering hands the whole animation to CSS — a single `width: 100%`
  * transition lasting the rest of the track — so no timer runs on the device
  * between media updates.
@@ -136,6 +143,28 @@ function progressUpdate(state, media, now) {
     };
 }
 
+/**
+ * Fold in a progress-only event (media_progress on the router WS).
+ *
+ * A player sends these when its source owns the metadata: everything that
+ * plays through mpv hands the player a URL and pushes its own title/artwork,
+ * and post_media_update defaults the length to 0, so the numbers can only
+ * come from the player. The event carries no track identity, so it re-anchors
+ * whatever track the model is on and leaves the key alone.
+ */
+function progressApply(state, event, now) {
+    const duration = progressSeconds(event.duration_ms, event.duration);
+    if (duration === null || duration <= 0) return state;
+    const position = progressSeconds(event.position_ms, event.position);
+    return {
+        key: state.key,
+        durationSec: duration,
+        anchorSec: position !== null ? position : progressSeek(state, now),
+        anchorAt: now,
+        playing: event.playing === undefined ? state.playing : !!event.playing,
+    };
+}
+
 /** What to draw, or null when there is nothing meaningful to show. */
 function progressSample(state, now) {
     if (!state || !(state.durationSec > 0)) return null;
@@ -161,6 +190,12 @@ const PlayingProgress = (() => {
     /** Fold in a media update (called from MediaManager.handleMediaUpdate). */
     function update(media, now) {
         model = progressUpdate(model, media || {}, now === undefined ? monotonic() : now);
+        return model;
+    }
+
+    /** Fold in a progress-only event (media_progress on the router WS). */
+    function applyProgress(event, now) {
+        model = progressApply(model, event || {}, now === undefined ? monotonic() : now);
         return model;
     }
 
@@ -207,7 +242,8 @@ const PlayingProgress = (() => {
         }
     }
 
-    return { update, sample, render, reset, get model() { return model; } };
+    return { update, applyProgress, sample, render, reset,
+             get model() { return model; } };
 })();
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -217,6 +253,7 @@ if (typeof module !== 'undefined' && module.exports) {
         progressSeconds,
         progressTrackKey,
         progressUpdate,
+        progressApply,
         progressSample,
         PlayingProgress,
     };

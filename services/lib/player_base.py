@@ -57,6 +57,7 @@ from .config import cfg
 from .active_target import clear_active_target, is_overridden, save_active_target
 from .endpoints import (
     INPUT_WEBHOOK,
+    ROUTER_BROADCAST,
     ROUTER_MEDIA,
     ROUTER_OUTPUT_ON,
     ROUTER_PLAYBACK_OVERRIDE,
@@ -306,6 +307,33 @@ class PlayerBase:
                     log.warning("Router media POST returned %d", resp.status)
         except Exception as e:
             log.warning("Could not post media to router: %s", e)
+
+    async def broadcast_progress(self, position_ms: int, duration_ms: int,
+                                 playing: bool) -> None:
+        """Tell the UI how far into the track playback is.
+
+        Deliberately not a media update: when a source owns the metadata
+        (Jellyfin, Plex, USB … all hand the player a URL and push title and
+        artwork themselves), a media POST from the player would replace that
+        metadata with what the player knows, which is nothing. This carries
+        the three numbers the progress bar needs and touches nothing else —
+        the router relays it to the UI clients verbatim.
+        """
+        if not self._session_ready():
+            return
+        try:
+            async with self._http_session.post(
+                ROUTER_BROADCAST,
+                json={"type": "media_progress",
+                      "data": {"position_ms": int(position_ms),
+                               "duration_ms": int(duration_ms),
+                               "playing": bool(playing)}},
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as resp:
+                if resp.status != 200:
+                    log.debug("Router progress POST returned %d", resp.status)
+        except Exception as e:
+            log.debug("Could not post progress to router: %s", e)
 
     # ── HTTP + WebSocket server ──
 

@@ -12,6 +12,7 @@ const {
     progressSeconds,
     progressTrackKey,
     progressUpdate,
+    progressApply,
     progressSample,
 } = require('../../../web/js/playing-progress.js');
 
@@ -181,5 +182,48 @@ describe('progressUpdate', () => {
             { state: 'playing', duration: '3:34', position: '0:10' }, 0);
         s = upd(s, { state: 'playing', duration: '3:34', position: '2:30' }, 5000);
         assert.equal(progressSample(s, 5000).positionSec, 150);
+    });
+});
+
+describe('progressApply', () => {
+    // media_progress carries no track identity — it re-anchors whatever the
+    // model is already on. This is the only length an mpv-backed source gets.
+    it('supplies a length the media payload never had', () => {
+        let s = upd(PROGRESS_EMPTY, { state: 'playing', duration: 0, position: 0 }, 0);
+        assert.equal(progressSample(s, 0), null);
+        s = progressApply(s, { position_ms: 30000, duration_ms: 214000, playing: true }, 1000);
+        const now = progressSample(s, 1000);
+        assert.equal(now.durationSec, 214);
+        assert.equal(now.positionSec, 30);
+    });
+
+    it('keeps the track identity, so the next payload does not reset it', () => {
+        let s = upd(PROGRESS_EMPTY, { state: 'playing' }, 0);
+        s = progressApply(s, { position_ms: 30000, duration_ms: 214000, playing: true }, 0);
+        s = upd(s, { state: 'playing' }, 5000);   // same track, still no length
+        assert.equal(progressSample(s, 5000).positionSec, 35);
+    });
+
+    it('pauses and resumes on the state the player reports', () => {
+        let s = upd(PROGRESS_EMPTY, { state: 'playing' }, 0);
+        s = progressApply(s, { position_ms: 30000, duration_ms: 214000, playing: false }, 0);
+        assert.equal(progressSample(s, 60000).positionSec, 30);
+        s = progressApply(s, { position_ms: 30000, duration_ms: 214000, playing: true }, 60000);
+        assert.equal(progressSample(s, 65000).positionSec, 35);
+    });
+
+    it('corrects drift from an earlier anchor', () => {
+        let s = upd(PROGRESS_EMPTY,
+            { state: 'playing', duration: '3:34', position: '0:00' }, 0);
+        s = progressApply(s, { position_ms: 95000, duration_ms: 214000, playing: true }, 60000);
+        assert.equal(progressSample(s, 60000).positionSec, 95);
+    });
+
+    it('ignores an event with no usable length', () => {
+        let s = upd(PROGRESS_EMPTY,
+            { state: 'playing', duration: '3:34', position: '1:00' }, 0);
+        s = progressApply(s, { position_ms: 0, duration_ms: 0, playing: true }, 10000);
+        assert.equal(progressSample(s, 10000).positionSec, 70);
+        assert.equal(progressSample(s, 10000).durationSec, 214);
     });
 });

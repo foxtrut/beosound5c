@@ -133,6 +133,17 @@ function processWebSocketEvent(message) {
             }
             break;
 
+        case 'media_progress':
+            // Position/duration only — sent by a player whose source owns the
+            // metadata (mpv-backed sources never report a track length of
+            // their own). Re-anchors the progress bar without touching title,
+            // artist or artwork.
+            if (window.PlayingProgress) {
+                window.PlayingProgress.applyProgress(data);
+                window.PlayingProgress.render();
+            }
+            break;
+
         case 'navigate':
             handleExternalNavigation(uiStore, data);
             break;
