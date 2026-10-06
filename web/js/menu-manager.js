@@ -78,6 +78,9 @@ class MenuManager {
                             <div id="media-title" class="media-view-title">—</div>
                             <div id="media-artist" class="media-view-artist">—</div>
                             <div id="media-album" class="media-view-album">—</div>
+                            <div class="bs5c-progress media-view-progress" hidden>
+                                <div class="bs5c-progress-fill"></div>
+                            </div>
                         </div>
                     </div>`
             },

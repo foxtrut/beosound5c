@@ -78,6 +78,11 @@ const DEFAULT_PLAYING_PRESET = {
                 if (flipper) flipper.classList.remove('flipped');
             }
         }
+        // Track progress bar — anchored by handleMediaUpdate, animated by CSS.
+        // Rendering here also covers view entry: view-manager calls
+        // updateNowPlayingView() on mount, so arriving at AFSPILLER mid-track
+        // draws the bar where it actually is.
+        if (window.PlayingProgress) window.PlayingProgress.render();
     },
     onMount(container) {
         const flipper = container.querySelector('.playing-flipper');
@@ -157,10 +162,18 @@ class MediaManager {
             track_id: keepTrackId ? (this.mediaInfo.track_id || '') : (data.track_id || ''),
             state: data.state || 'unknown',
             position: data.position || '0:00',
-            duration: data.duration || '0:00'
+            duration: data.duration || '0:00',
+            // Explicit millisecond fields when a backend sends them (demo
+            // backend, emulator) — PlayingProgress prefers these over the
+            // formatted strings above.
+            position_ms: data.position_ms,
+            duration_ms: data.duration_ms
         };
 
         this._syncPlaybackStateClasses(prevState, this.mediaInfo);
+
+        // Re-anchor the progress model before anything renders from it.
+        if (window.PlayingProgress) window.PlayingProgress.update(this.mediaInfo);
 
         document.dispatchEvent(new CustomEvent('bs5c:media-update', {
             detail: { data: this.mediaInfo, reason }

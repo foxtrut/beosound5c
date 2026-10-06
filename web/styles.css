@@ -211,6 +211,45 @@ body.playback-paused #now-playing .media-view-artwork img {
   opacity: 0.8;
 }
 
+/* ── Track progress (PLAYING info box + immersive overlay) ──
+   playing-progress.js sets the fill width and a `width <remaining>ms linear`
+   transition, so the whole sweep runs in CSS — no JS timer between media
+   updates. The bar hides itself (hidden attribute) when the track length is
+   unknown, e.g. live radio. */
+.bs5c-progress {
+  background: rgba(255,255,255,0.18);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+/* The sweep length arrives as --bs5c-progress-ms rather than an inline
+   transition: hardware-input.js injects `transition: none !important` for
+   every element whose inline style mentions "transition" (it keeps the laser
+   pointer snappy), and an inline one here would be killed by it. */
+.bs5c-progress-fill {
+  height: 100%;
+  width: 0;
+  background: rgba(255,255,255,0.75);
+  transition: width var(--bs5c-progress-ms, 0ms) linear;
+}
+
+.media-view-progress {
+  height: 3px;
+  width: 70%;
+  margin: 14px auto 2px;
+}
+
+.immersive-info-progress {
+  height: 3px;
+  width: 100%;
+  margin-top: 16px;
+}
+
+/* Dimmed while paused, like the artwork */
+body.playback-paused .bs5c-progress-fill {
+  opacity: 0.55;
+}
+
 /* ── Immersive PLAYING mode ──
    Pure CSS transform on artwork — no layout changes, GPU-accelerated.
    JS drives all visual state via inline styles (laser tracking = no transition,
