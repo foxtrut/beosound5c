@@ -625,3 +625,16 @@ class TestIcyNowPlaying:
         monkeypatch.setattr(RadioService, "_start_icy_poll", lambda self: None)
         _run(svc._play_station(dict(self.STATION)))
         assert svc._icy_title == "" and svc._icy_uuid == ""
+
+    def test_strips_drs_leading_slash(self, mock_config, monkeypatch):
+        """DR sends "/ Lana Del Rey - West Coast"."""
+        svc = _svc(mock_config, monkeypatch)
+        resp = _icy_response(metaint=16, payload=b"StreamTitle='/ Lana Del Rey - West Coast';")
+        svc._api_session = SimpleNamespace(get=lambda *a, **kw: resp)
+        assert _run(svc._fetch_icy_title("http://x/y.mp3")) == "Lana Del Rey - West Coast"
+
+    def test_keeps_a_slash_inside_the_title(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        resp = _icy_response(metaint=16, payload=b"StreamTitle='AC/DC - Highway to Hell';")
+        svc._api_session = SimpleNamespace(get=lambda *a, **kw: resp)
+        assert _run(svc._fetch_icy_title("http://x/y.mp3")) == "AC/DC - Highway to Hell"

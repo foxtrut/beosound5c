@@ -1301,7 +1301,11 @@ class RadioService(SourceBase):
                 return ""
             blob = await resp.content.readexactly(size)
         match = re.search(r"StreamTitle='(.*?)';", blob.decode("utf-8", "replace"))
-        return match.group(1).strip() if match else ""
+        if not match:
+            return ""
+        # DR sends "/ Lana Del Rey - West Coast". Strip that leading slash
+        # only — plenty of titles have one of their own ("AC/DC").
+        return match.group(1).strip().lstrip("/").strip()
 
     def _start_icy_poll(self):
         if self._icy_poll_task and not self._icy_poll_task.done():
@@ -1334,7 +1338,13 @@ class RadioService(SourceBase):
                                  station.get("name"), title or "(ingen titel)")
                         await self.post_media_update(**self._build_meta(station),
                                                      state=self._playing_state)
-            await asyncio.sleep(ICY_POLL_INTERVAL)
+            for _ in range(ICY_POLL_INTERVAL):
+                await asyncio.sleep(1)
+                if self._playing_state not in ("playing", "paused"):
+                    return
+                current = (self._current_station or {}).get("stationuuid", "")
+                if current and current != self._icy_uuid:
+                    break
 
     async def _sr_poll_loop(self):
         """Background poller for SR now-playing metadata."""
