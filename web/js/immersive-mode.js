@@ -55,18 +55,11 @@
                 '<div class="immersive-info-state"></div>' +
                 '<div class="immersive-info-title"></div>' +
                 '<div class="immersive-info-artist"></div>' +
-                '<div class="immersive-info-album"></div>' +
-                '<div class="bs5c-progress-group immersive-info-progress" hidden>' +
-                    '<div class="bs5c-progress">' +
-                        '<div class="bs5c-progress-fill"></div></div>' +
-                    '<div class="bs5c-progress-times">' +
-                        '<span class="bs5c-progress-elapsed"></span>' +
-                        '<span class="bs5c-progress-total"></span></div></div>';
+                '<div class="immersive-info-album"></div>';
             container.appendChild(el);
-            // The overlay is built lazily, long after the media update that
-            // set the progress model — draw its bar now rather than leaving it
-            // empty until the next update (which may be a whole track away).
-            if (window.PlayingProgress) window.PlayingProgress.render();
+            // No progress bar here on purpose: this view exists to show the
+            // artwork at full size, and the owner wants nothing competing
+            // with it. The bar lives in the PLAYING info box only.
         }
         return el;
     }

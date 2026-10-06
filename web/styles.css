@@ -249,11 +249,6 @@ body.playback-paused #now-playing .media-view-artwork img {
   margin: 14px auto 0;
 }
 
-.immersive-info-progress {
-  width: 100%;
-  margin-top: 16px;
-}
-
 /* Dimmed while paused, like the artwork */
 body.playback-paused .bs5c-progress-fill {
   opacity: 0.55;
