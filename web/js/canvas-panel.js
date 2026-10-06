@@ -421,6 +421,13 @@
             if (active) syncTextMirror();
         });
 
+        // Playback resumed according to the player itself. The cycle gate
+        // reads uiStore.mediaInfo.state, which this event is what corrects —
+        // without a retry here the video stays off until the next track.
+        document.addEventListener('bs5c:playback-state', function(e) {
+            if (e.detail && e.detail.playing) tryStartCycle();
+        });
+
         // Menu open → pause cycle; menu close → resume
         document.addEventListener('bs5c:menu-visibility', function(e) {
             if (e.detail.visible) {

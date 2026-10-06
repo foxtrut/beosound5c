@@ -257,6 +257,24 @@ class TestHandleBroadcast:
         assert resp.status == 400
         fake_router_instance.media.broadcast.assert_not_called()
 
+    def test_media_progress_updates_the_cached_state(self, fake_router_instance):
+        """A player reporting its own playing/paused is the only thing that
+        can correct the cached payload for the next client to connect."""
+        resp = _run(handle_broadcast(_FakeRequest({
+            "type": "media_progress",
+            "data": {"position_ms": 1000, "duration_ms": 2000,
+                     "playing": False},
+        })))
+        assert resp.status == 200
+        fake_router_instance.media.note_playing.assert_called_once_with(False)
+        fake_router_instance.media.broadcast.assert_awaited_once()
+
+    def test_other_events_leave_the_cached_state_alone(self, fake_router_instance):
+        _run(handle_broadcast(_FakeRequest({
+            "type": "menu_item", "data": {"playing": True},
+        })))
+        fake_router_instance.media.note_playing.assert_not_called()
+
     def test_missing_type_defaults_to_unknown(self, fake_router_instance):
         """broadcast is permissive — missing type becomes ``unknown``
         rather than 400.  This pins that permissive behaviour."""

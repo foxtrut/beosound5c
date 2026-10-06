@@ -204,6 +204,12 @@ class MediaManager {
         this.mediaInfo = { ...this.mediaInfo, state };
         this._syncPlaybackStateClasses(prevState, this.mediaInfo);
         this.updateNowPlayingView();
+        // The canvas/video panel gates its cycle on this state and only
+        // retries on a track change, a video load or the menu closing — so a
+        // correction arriving in between has to say so (canvas-panel.js).
+        document.dispatchEvent(new CustomEvent('bs5c:playback-state', {
+            detail: { playing }
+        }));
     }
 
     /**
