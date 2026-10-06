@@ -629,9 +629,18 @@ class TestIcyNowPlaying:
         monkeypatch.setattr(RadioService, "register", AsyncMock())
         monkeypatch.setattr(RadioService, "post_media_update", AsyncMock())
         monkeypatch.setattr(RadioService, "_start_state_poll", lambda self: None)
-        monkeypatch.setattr(RadioService, "_start_icy_poll", lambda self: None)
         _run(svc._play_station(dict(self.STATION)))
         assert svc._icy_title == "" and svc._icy_uuid == ""
+
+    def test_the_poll_is_not_started_from_inside_a_play(self, mock_config, monkeypatch):
+        """A task inherits the context it is created in, and the action
+        timestamp lives in a context var — a poll spawned during a play
+        stamped every later update with that play's timestamp, and the
+        router dropped them all as stale_action_ts."""
+        import inspect
+        src = inspect.getsource(RadioService._play_station)
+        assert "_icy_poll" not in src
+        assert "_icy_poll_loop" in inspect.getsource(RadioService.on_start)
 
     def test_strips_drs_leading_slash(self, mock_config, monkeypatch):
         """DR sends "/ Lana Del Rey - West Coast"."""

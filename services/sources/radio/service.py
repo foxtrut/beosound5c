@@ -342,6 +342,7 @@ class RadioService(SourceBase):
         # Pre-warm curated station caches so play_by_name is instant
         self._spawn(self._prewarm_curated(), name="prewarm_curated")
         self._sr_poll_task = asyncio.create_task(self._sr_poll_loop())
+        self._icy_poll_task = self._spawn(self._icy_poll_loop(), name="radio_icy_poll")
         log.info("Radio source ready (%d favourites, last=%s)",
                  len(self._favourites),
                  self._current_station.get("name") if self._current_station else "none")
@@ -371,7 +372,6 @@ class RadioService(SourceBase):
                         await self.post_media_update(
                             **self._build_meta(station), state=state)
                         self._start_state_poll()
-                        self._start_icy_poll()
                         log.info("Adopted stream already playing: %s (%s)",
                                  station.get("name"), state)
                         return
@@ -974,7 +974,6 @@ class RadioService(SourceBase):
                 self._playing_state = "stopped"
             else:
                 self._start_state_poll()
-                self._start_icy_poll()
         state = self._playing_state if self._playing_state in ('playing', 'paused') else 'available'
         await self.register(state)
         await self._resync_media()
@@ -1155,7 +1154,6 @@ class RadioService(SourceBase):
         if ok:
             self._playing_state = "playing"
             self._start_state_poll()
-            self._start_icy_poll()
         else:
             # Roll back the pre-broadcast — otherwise GO toggles
             # pause/resume on a stream that never started.
@@ -1307,44 +1305,64 @@ class RadioService(SourceBase):
         # only — plenty of titles have one of their own ("AC/DC").
         return match.group(1).strip().lstrip("/").strip()
 
-    def _start_icy_poll(self):
-        if self._icy_poll_task and not self._icy_poll_task.done():
-            return
-        self._icy_poll_task = self._spawn(self._icy_poll_loop(), name="radio_icy_poll")
-
     async def _icy_poll_loop(self):
         """Follow the now-playing title while a station is playing.
 
-        Stations that send nothing — DR Nyheder, Radio Soft, The Voice all
-        send an empty StreamTitle — simply keep the station name as the
+        Started once, at startup, and never from inside a play. A task
+        inherits the context it is created in, and post_media_update stamps
+        its payload from the _action_ts context var — so a poll spawned
+        during a play carried that play's timestamp for the rest of its life
+        and the router dropped every update it sent as stale_action_ts. From
+        startup the context is empty and the stamp falls back to the live
+        self._action_ts, which is how the SR poller has always worked.
+
+        Stations that send nothing — DR Nyheder, Radio Soft and The Voice
+        all send an empty StreamTitle — simply keep the station name as the
         title, which is what the view showed before any of this.
         """
-        while self._playing_state in ("playing", "paused"):
-            station = self._current_station
-            url = self._icy_url_for(station) if station else ""
-            if url:
-                uuid = station.get("stationuuid", "")
-                try:
-                    title = await self._fetch_icy_title(url)
-                except asyncio.CancelledError:
-                    return
-                except Exception as e:
-                    log.debug("ICY read failed for %s: %s", station.get("name"), e)
-                    title = None            # leave the last title standing
-                if title is not None and (title, uuid) != (self._icy_title, self._icy_uuid):
-                    self._icy_title, self._icy_uuid = title, uuid
-                    if station is self._current_station:
-                        log.info("Now playing on %s: %s",
-                                 station.get("name"), title or "(ingen titel)")
-                        await self.post_media_update(**self._build_meta(station),
-                                                     state=self._playing_state)
-            for _ in range(ICY_POLL_INTERVAL):
-                await asyncio.sleep(1)
-                if self._playing_state not in ("playing", "paused"):
-                    return
-                current = (self._current_station or {}).get("stationuuid", "")
-                if current and current != self._icy_uuid:
-                    break
+        while True:
+            try:
+                if self._playing_state in ("playing", "paused"):
+                    await self._icy_read_once()
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                log.exception("ICY poll error (will retry)")
+            await self._icy_wait()
+
+    async def _icy_read_once(self):
+        """One read, broadcast only if the title actually changed."""
+        station = self._current_station
+        url = self._icy_url_for(station) if station else ""
+        if not url:
+            return
+        uuid = station.get("stationuuid", "")
+        try:
+            title = await self._fetch_icy_title(url)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            log.debug("ICY read failed for %s: %s", station.get("name"), e)
+            return                      # leave the last title standing
+        if (title, uuid) == (self._icy_title, self._icy_uuid):
+            return
+        self._icy_title, self._icy_uuid = title, uuid
+        if station is self._current_station:
+            log.info("Now playing on %s: %s",
+                     station.get("name"), title or "(ingen titel)")
+            await self.post_media_update(**self._build_meta(station),
+                                         state=self._playing_state)
+
+    async def _icy_wait(self):
+        """Wait for the next read, waking early when the station changes —
+        otherwise a new station wears no title for up to a full interval."""
+        for _ in range(ICY_POLL_INTERVAL):
+            await asyncio.sleep(1)
+            if self._playing_state not in ("playing", "paused"):
+                continue
+            current = (self._current_station or {}).get("stationuuid", "")
+            if current and current != self._icy_uuid:
+                return
 
     async def _sr_poll_loop(self):
         """Background poller for SR now-playing metadata."""
