@@ -1256,15 +1256,15 @@ class RadioService(SourceBase):
         artwork = (f"http://localhost:{self.port}/favicon"
                    f"?url={urllib.parse.quote(favicon, safe='')}") if favicon else ""
 
-        # A live title moves the station name down a line — the song is what
-        # you want to read first, and the station is still named right under
-        # it. Without one, nothing changes.
+        # The song rides alongside as ``track`` rather than replacing the
+        # title. The PLAYING view puts it on top with the station underneath;
+        # the immersive view never reads the field, so the artwork keeps its
+        # screen and the station name stays on the one line that fits there.
+        meta = {"title": self._name_for(station), "artist": artist,
+                "album": album, "artwork": artwork}
         if self._icy_title and station.get("stationuuid", "") == self._icy_uuid:
-            return {"title": self._icy_title, "artist": self._name_for(station),
-                    "album": album, "artwork": artwork}
-
-        return {"title": self._name_for(station), "artist": artist, "album": album,
-                "artwork": artwork}
+            meta["track"] = self._icy_title
+        return meta
 
     # ── Sveriges Radio now-playing ──
 

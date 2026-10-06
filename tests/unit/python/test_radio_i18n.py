@@ -568,25 +568,32 @@ class TestIcyNowPlaying:
         assert svc._icy_url_for({"stationuuid": "x",
                                  "url_resolved": "https://e.com/x/master.m3u8"}) == ""
 
-    def test_title_replaces_the_name_and_moves_it_down(self, mock_config, monkeypatch):
+    def test_song_rides_alongside_the_title(self, mock_config, monkeypatch):
+        """The station keeps the title. The song travels as `track`, which the
+        PLAYING view leads with and the immersive view never reads."""
         svc = _svc(mock_config, monkeypatch)
         svc._icy_title, svc._icy_uuid = "Nick Cave & The Bad Seeds - Into My Arms", self.P4
         meta = svc._build_meta(self.STATION)
-        assert meta["title"] == "Nick Cave & The Bad Seeds - Into My Arms"
-        assert meta["artist"] == "DR P4 Østjylland"      # the display name
+        assert meta["track"] == "Nick Cave & The Bad Seeds - Into My Arms"
+        assert meta["title"] == "DR P4 Østjylland"
+        assert meta["artist"] == "Regionalradio"
         assert "AAC 320kbps" in meta["album"]
 
-    def test_no_title_leaves_the_view_as_it_was(self, mock_config, monkeypatch):
+    def test_no_song_sends_no_track_field(self, mock_config, monkeypatch):
+        """Nothing extra in the payload, so nothing changes anywhere."""
         svc = _svc(mock_config, monkeypatch)
         meta = svc._build_meta(self.STATION)
+        assert "track" not in meta
         assert meta["title"] == "DR P4 Østjylland"
         assert meta["artist"] == "Regionalradio"
 
-    def test_a_title_from_another_station_is_not_shown(self, mock_config, monkeypatch):
+    def test_a_song_from_another_station_is_not_sent(self, mock_config, monkeypatch):
         """Stale state must not label one station with another's song."""
         svc = _svc(mock_config, monkeypatch)
         svc._icy_title, svc._icy_uuid = "Billy Idol - White Wedding", "some-other-uuid"
-        assert svc._build_meta(self.STATION)["title"] == "DR P4 Østjylland"
+        meta = svc._build_meta(self.STATION)
+        assert "track" not in meta
+        assert meta["title"] == "DR P4 Østjylland"
 
     def test_parses_a_streamtitle(self, mock_config, monkeypatch):
         svc = _svc(mock_config, monkeypatch)
@@ -638,3 +645,10 @@ class TestIcyNowPlaying:
         resp = _icy_response(metaint=16, payload=b"StreamTitle='AC/DC - Highway to Hell';")
         svc._api_session = SimpleNamespace(get=lambda *a, **kw: resp)
         assert _run(svc._fetch_icy_title("http://x/y.mp3")) == "AC/DC - Highway to Hell"
+
+    def test_the_track_field_reaches_the_router_payload(self, mock_config, monkeypatch):
+        """post_media_update has a fixed signature, so an unknown key would
+        be a TypeError rather than a silently dropped field."""
+        import inspect
+        from lib.source_base import SourceBase
+        assert "track" in inspect.signature(SourceBase.post_media_update).parameters

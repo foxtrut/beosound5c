@@ -49,8 +49,11 @@ const DEFAULT_PLAYING_PRESET = {
         const titleEl = container.querySelector('.media-view-title');
         const artistEl = container.querySelector('.media-view-artist');
         const albumEl = container.querySelector('.media-view-album');
-        crossfadeText(titleEl, data.title || '—');
-        crossfadeText(artistEl, data.artist || '—');
+        // `track` is what is playing within `title` — a song on a radio
+        // station. With one, it leads and the station moves to the line
+        // below; without, the view is exactly as it was.
+        crossfadeText(titleEl, data.track || data.title || '—');
+        crossfadeText(artistEl, (data.track ? data.title : data.artist) || '—');
         crossfadeText(albumEl, data.album || '—');
         const img = container.querySelector('.playing-artwork');
         if (img && window.ArtworkManager) {

@@ -163,7 +163,7 @@ class SourceBase:
                                 artwork="", state="playing",
                                 duration=0, position=0, reason="track_change",
                                 back_artwork="", track_number=0,
-                                canvas_url="", track_uri=""):
+                                canvas_url="", track_uri="", track=""):
         """Push a media update to the router for unified PLAYING view rendering.
         All sources should use this instead of source-specific _update broadcasts
         for metadata that appears on the PLAYING view.
@@ -189,6 +189,13 @@ class SourceBase:
             "_reason": reason,
             "_source_id": self.id,
         }
+        # ``track`` is what is playing *within* the item named by ``title`` —
+        # the song on a radio station, where the title is the station itself.
+        # Optional and additive: a view that doesn't know the field renders
+        # exactly what it rendered before, which is how the immersive view
+        # stays free of it.
+        if track:
+            payload["track"] = track
         if back_artwork:
             payload["back_artwork"] = back_artwork
         if track_number:
