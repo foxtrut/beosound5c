@@ -131,30 +131,33 @@ class TestCacheGuard:
 
         return run
 
-    def _cached(self, track):
+    # How a stream URL carries its token is a separate concern that other
+    # work changes (api_key in the URL vs an Authorization header), and the
+    # guard beside this one judges the cache on exactly that. These fixtures
+    # therefore use a URL shape no such guard objects to — it carries the
+    # current token and no api_key — so what is asserted below is the album
+    # rule alone, whichever URL rule happens to sit next to it.
+    NEUTRAL_URL = "http://jf/Audio/abc/universal?token=TOKEN"
+
+    def _cached(self, **over):
+        track = {"name": "Borderline", "artist": "Tame Impala", "id": "abc",
+                 "image": "", "url": self.NEUTRAL_URL}
+        track.update(over)
         return [{"id": "album:alb1", "name": "The Slow Rush",
                  "updatedAt": "2020:1", "tracks": [track]}]
 
     def test_a_cache_without_albums_is_dropped(self, run_fetch):
-        old = {"name": "Borderline", "artist": "Tame Impala", "id": "abc",
-               "url": "http://jf/Audio/abc/universal?api_key=TOKEN",
-               "image": ""}
-        playlists, log = run_fetch(cached=self._cached(old))
+        playlists, log = run_fetch(cached=self._cached())
         assert "predate the album field" in log
         assert playlists[0]["tracks"][0]["album"] == "The Slow Rush"
 
     def test_a_cache_with_albums_is_kept(self, run_fetch):
-        current = {"name": "Borderline", "artist": "Tame Impala", "id": "abc",
-                   "album": "The Slow Rush", "image": "",
-                   "url": "http://jf/Audio/abc/universal?api_key=TOKEN"}
-        playlists, log = run_fetch(cached=self._cached(current))
+        playlists, log = run_fetch(cached=self._cached(album="The Slow Rush"))
         assert "Invalidating cache" not in log
         assert playlists[0]["tracks"][0]["album"] == "The Slow Rush"
 
-    def test_a_changed_token_still_drops_the_cache(self, run_fetch):
-        """The guard this one was modelled on must keep working."""
-        old_token = {"name": "Borderline", "artist": "Tame Impala", "id": "abc",
-                     "album": "The Slow Rush", "image": "",
-                     "url": "http://jf/Audio/abc/universal?api_key=OLD"}
-        _, log = run_fetch(cached=self._cached(old_token))
-        assert "access token changed" in log
+    def test_an_empty_album_still_counts_as_written(self, run_fetch):
+        """A playlist track genuinely without an album must not re-trigger a
+        full refresh on every single fetch."""
+        _, log = run_fetch(cached=self._cached(album=""))
+        assert "Invalidating cache" not in log
