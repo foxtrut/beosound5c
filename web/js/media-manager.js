@@ -110,6 +110,7 @@ class MediaManager {
             title: '—',
             artist: '—',
             album: '—',
+            track: '',
             artwork: '',
             canvas_url: '',
             track_id: '',
@@ -153,6 +154,10 @@ class MediaManager {
             title: data.title || '—',
             artist: data.artist || '—',
             album: data.album || '—',
+            // What is playing within `title` — a song on a radio station.
+            // mediaInfo is rebuilt from a fixed field list, so a field left
+            // out here never reaches any view.
+            track: data.track || '',
             artwork: data.artwork || '',
             back_artwork: data.back_artwork || '',
             canvas_url: keepCanvas ? (this.mediaInfo.canvas_url || '') : (data.canvas_url || ''),
