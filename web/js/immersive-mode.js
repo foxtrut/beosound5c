@@ -56,8 +56,12 @@
                 '<div class="immersive-info-title"></div>' +
                 '<div class="immersive-info-artist"></div>' +
                 '<div class="immersive-info-album"></div>' +
-                '<div class="bs5c-progress immersive-info-progress" hidden>' +
-                    '<div class="bs5c-progress-fill"></div></div>';
+                '<div class="bs5c-progress-group immersive-info-progress" hidden>' +
+                    '<div class="bs5c-progress">' +
+                        '<div class="bs5c-progress-fill"></div></div>' +
+                    '<div class="bs5c-progress-times">' +
+                        '<span class="bs5c-progress-elapsed"></span>' +
+                        '<span class="bs5c-progress-total"></span></div></div>';
             container.appendChild(el);
             // The overlay is built lazily, long after the media update that
             // set the progress model — draw its bar now rather than leaving it

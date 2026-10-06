@@ -165,6 +165,17 @@ function progressApply(state, event, now) {
     };
 }
 
+/** Seconds → the same m:ss / h:mm:ss the player services format. */
+function progressClock(seconds) {
+    const total = Math.max(0, Math.floor(seconds || 0));
+    const s = String(total % 60).padStart(2, '0');
+    const m = Math.floor(total / 60) % 60;
+    if (total >= 3600) {
+        return `${Math.floor(total / 3600)}:${String(m).padStart(2, '0')}:${s}`;
+    }
+    return `${m}:${s}`;
+}
+
 /** What to draw, or null when there is nothing meaningful to show. */
 function progressSample(state, now) {
     if (!state || !(state.durationSec > 0)) return null;
@@ -182,6 +193,7 @@ function progressSample(state, now) {
 
 const PlayingProgress = (() => {
     let model = PROGRESS_EMPTY;
+    let ticker = null;
 
     const monotonic = () => (typeof performance !== 'undefined' && performance.now
         ? performance.now()
@@ -205,6 +217,7 @@ const PlayingProgress = (() => {
 
     function reset() {
         model = PROGRESS_EMPTY;
+        ensureTicker(false);
     }
 
     /**
@@ -214,31 +227,71 @@ const PlayingProgress = (() => {
      */
     function render(now) {
         if (typeof document === 'undefined') return;
-        const bars = document.querySelectorAll('.bs5c-progress');
-        if (!bars.length) return;
+        const groups = document.querySelectorAll('.bs5c-progress-group');
+        if (!groups.length) return;
         const s = sample(now);
-        for (const bar of bars) {
-            const fill = bar.querySelector('.bs5c-progress-fill');
+        for (const group of groups) {
+            const fill = group.querySelector('.bs5c-progress-fill');
             if (!s) {
-                bar.hidden = true;
+                group.hidden = true;
                 if (fill) {
                     fill.style.setProperty('--bs5c-progress-ms', '0ms');
                     fill.style.width = '0%';
                 }
                 continue;
             }
-            bar.hidden = false;
-            if (!fill) continue;
-            // Jump to the known position without animating...
-            fill.style.setProperty('--bs5c-progress-ms', '0ms');
-            fill.style.width = `${(s.fraction * 100).toFixed(3)}%`;
-            if (s.playing && s.remainingMs > 0) {
-                // ...then let one CSS transition cover the rest of the track.
-                void fill.offsetWidth;   // commit the jump first
-                fill.style.setProperty('--bs5c-progress-ms',
-                                       `${Math.round(s.remainingMs)}ms`);
-                fill.style.width = '100%';
+            group.hidden = false;
+            if (fill) {
+                // Jump to the known position without animating...
+                fill.style.setProperty('--bs5c-progress-ms', '0ms');
+                fill.style.width = `${(s.fraction * 100).toFixed(3)}%`;
+                if (s.playing && s.remainingMs > 0) {
+                    // ...then let one CSS transition cover the rest of the track.
+                    void fill.offsetWidth;   // commit the jump first
+                    fill.style.setProperty('--bs5c-progress-ms',
+                                           `${Math.round(s.remainingMs)}ms`);
+                    fill.style.width = '100%';
+                }
             }
+            const total = group.querySelector('.bs5c-progress-total');
+            if (total) total.textContent = progressClock(s.durationSec);
+        }
+        renderElapsed(s, now);
+        ensureTicker(!!s && s.playing);
+    }
+
+    /**
+     * The elapsed readout is the one thing CSS cannot carry — it needs a digit
+     * every second. Kept apart from render() so the ticker only rewrites two
+     * text nodes rather than restarting the bar's transition each second.
+     */
+    function renderElapsed(s, now) {
+        const labels = document.querySelectorAll('.bs5c-progress-elapsed');
+        if (!labels.length) return;
+        const cur = s === undefined ? sample(now) : s;
+        const text = cur ? progressClock(cur.positionSec) : '';
+        for (const el of labels) {
+            if (el.textContent !== text) el.textContent = text;
+        }
+    }
+
+    /**
+     * One second tick, alive only while a visible bar is actually advancing.
+     * Nothing on screen (the view was left, playback paused, length unknown)
+     * means no timer at all — the device runs this UI for days at a time.
+     */
+    function ensureTicker(wanted) {
+        if (wanted && !ticker) {
+            ticker = setInterval(() => {
+                if (!document.querySelector('.bs5c-progress-elapsed')) {
+                    ensureTicker(false);   // view gone — stop rather than spin
+                    return;
+                }
+                renderElapsed();
+            }, 1000);
+        } else if (!wanted && ticker) {
+            clearInterval(ticker);
+            ticker = null;
         }
     }
 
@@ -252,6 +305,7 @@ if (typeof module !== 'undefined' && module.exports) {
         PROGRESS_EMPTY,
         progressSeconds,
         progressTrackKey,
+        progressClock,
         progressUpdate,
         progressApply,
         progressSample,

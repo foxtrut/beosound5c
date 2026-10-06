@@ -217,9 +217,20 @@ body.playback-paused #now-playing .media-view-artwork img {
    updates. The bar hides itself (hidden attribute) when the track length is
    unknown, e.g. live radio. */
 .bs5c-progress {
+  height: 3px;
   background: rgba(255,255,255,0.18);
   border-radius: 2px;
   overflow: hidden;
+}
+
+/* Elapsed left, track length right — digits only, so nothing to translate. */
+.bs5c-progress-times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.6;
 }
 
 /* The sweep length arrives as --bs5c-progress-ms rather than an inline
@@ -234,13 +245,11 @@ body.playback-paused #now-playing .media-view-artwork img {
 }
 
 .media-view-progress {
-  height: 3px;
   width: 70%;
-  margin: 14px auto 2px;
+  margin: 14px auto 0;
 }
 
 .immersive-info-progress {
-  height: 3px;
   width: 100%;
   margin-top: 16px;
 }

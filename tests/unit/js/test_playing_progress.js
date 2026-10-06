@@ -11,6 +11,7 @@ const {
     PROGRESS_EMPTY,
     progressSeconds,
     progressTrackKey,
+    progressClock,
     progressUpdate,
     progressApply,
     progressSample,
@@ -66,6 +67,28 @@ describe('progressTrackKey', () => {
 
     it('survives a payload with nothing in it', () => {
         assert.equal(progressTrackKey({}), '||');
+    });
+});
+
+describe('progressClock', () => {
+    it('formats m:ss like the player services do', () => {
+        assert.equal(progressClock(0), '0:00');
+        assert.equal(progressClock(7), '0:07');
+        assert.equal(progressClock(214), '3:34');
+    });
+
+    it('grows an hours field past the hour', () => {
+        assert.equal(progressClock(3600), '1:00:00');
+        assert.equal(progressClock(3814), '1:03:34');
+    });
+
+    it('floors rather than rounds, so the readout never runs ahead', () => {
+        assert.equal(progressClock(59.9), '0:59');
+    });
+
+    it('survives nothing at all', () => {
+        assert.equal(progressClock(undefined), '0:00');
+        assert.equal(progressClock(-5), '0:00');
     });
 });
 
