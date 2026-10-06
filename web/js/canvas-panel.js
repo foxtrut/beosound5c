@@ -135,7 +135,21 @@
             'position:absolute;left:' + rect.left + 'px;top:' + rect.top + 'px;' +
             'width:' + rect.width + 'px;color:white;pointer-events:none;z-index:2;';
         textMirror.innerHTML = src.innerHTML;
-        var srcKids = src.children;
+        // The mirror flattens every line to its own textContent, so anything
+        // in the overlay that is markup rather than a line of text has to go
+        // first: the progress group would collapse into its two timestamps
+        // run together ("1:10" + "5:22" = "1:105:22"). The panel draws the
+        // video's own progress along its bottom edge anyway.
+        var dropped = textMirror.querySelectorAll('.bs5c-progress-group');
+        for (var d = 0; d < dropped.length; d++) {
+            dropped[d].parentNode.removeChild(dropped[d]);
+        }
+        var srcKids = [];
+        for (var k = 0; k < src.children.length; k++) {
+            if (!src.children[k].classList.contains('bs5c-progress-group')) {
+                srcKids.push(src.children[k]);
+            }
+        }
         var mirKids = textMirror.children;
         for (var i = 0; i < srcKids.length && i < mirKids.length; i++) {
             var cs = getComputedStyle(srcKids[i]);
