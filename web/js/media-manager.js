@@ -183,6 +183,30 @@ class MediaManager {
     }
 
     /**
+     * Adopt a playback state the player reported on its own (the `playing`
+     * flag on media_progress).
+     *
+     * Sources that drive the local player register "paused" with the router,
+     * and that registration never becomes a media update — the registry only
+     * broadcasts source_change, and only when the active source changes. So
+     * mediaInfo.state stays "playing" through a pause and the ❚❚ glyph never
+     * appears for Jellyfin, Plex, Tidal, Apple Music, USB or news. The player
+     * knows (it is the one pausing mpv) and now says so.
+     *
+     * Players that already report their own paused media (Sonos, BlueSound,
+     * WiiM, HEOS, Mozart, ASE) and the AirPlay source are unaffected: they
+     * send no progress events, and the state they push wins as before.
+     */
+    applyPlaybackState(playing) {
+        const state = playing ? 'playing' : 'paused';
+        if (this.mediaInfo.state === state) return;
+        const prevState = this.mediaInfo.state;
+        this.mediaInfo = { ...this.mediaInfo, state };
+        this._syncPlaybackStateClasses(prevState, this.mediaInfo);
+        this.updateNowPlayingView();
+    }
+
+    /**
      * On-screen playback state (see styles.css "Playback state"):
      *   body.playback-paused  — a track is loaded but not playing. Draws the
      *                           ❚❚ glyph above the title and dims the artwork.

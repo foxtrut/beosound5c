@@ -142,6 +142,12 @@ function processWebSocketEvent(message) {
                 window.PlayingProgress.applyProgress(data);
                 window.PlayingProgress.render();
             }
+            // The player is also the only one who knows this playback is
+            // paused — the source's "paused" registration never reaches the
+            // UI as media (see MediaManager.applyPlaybackState).
+            if ('playing' in data && uiStore.media?.applyPlaybackState) {
+                uiStore.media.applyPlaybackState(data.playing);
+            }
             break;
 
         case 'navigate':
