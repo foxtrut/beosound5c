@@ -206,6 +206,11 @@ SR_CHANNEL_MAP = {
 
 SR_POLL_INTERVAL = 60  # seconds
 
+# Now-playing from the stream itself (Icecast ICY StreamTitle).
+ICY_POLL_INTERVAL = 30   # seconds between reads while a station plays
+ICY_FETCH_TIMEOUT = 12   # a read that stalls must not hold the poll loop
+ICY_MAX_METAINT = 64000  # bytes of audio skipped per read — refuse the absurd
+
 
 # Short-name suggestion — generates an alias for play_by_name (BeoRemote
 # menu label matching). Heuristic: strip codec/bitrate noise and bracketed
@@ -322,6 +327,9 @@ class RadioService(SourceBase):
         self._sr_channel_images: dict[str, bytes] = {}  # uuid → PNG bytes
         self._sr_artwork_cache: dict[str, tuple[str, bytes]] = {}  # uuid → (title, image bytes)
         self._sr_poll_task: asyncio.Task | None = None
+        self._icy_title: str = ""              # last StreamTitle seen
+        self._icy_uuid: str = ""               # the station it belongs to
+        self._icy_poll_task: asyncio.Task | None = None
 
     async def on_start(self):
         self._api_session = ClientSession(
@@ -363,6 +371,7 @@ class RadioService(SourceBase):
                         await self.post_media_update(
                             **self._build_meta(station), state=state)
                         self._start_state_poll()
+                        self._start_icy_poll()
                         log.info("Adopted stream already playing: %s (%s)",
                                  station.get("name"), state)
                         return
@@ -965,6 +974,7 @@ class RadioService(SourceBase):
                 self._playing_state = "stopped"
             else:
                 self._start_state_poll()
+                self._start_icy_poll()
         state = self._playing_state if self._playing_state in ('playing', 'paused') else 'available'
         await self.register(state)
         await self._resync_media()
@@ -1110,6 +1120,8 @@ class RadioService(SourceBase):
         prev_station = self._current_station
         prev_state = self._playing_state
 
+        if station.get("stationuuid", "") != self._icy_uuid:
+            self._icy_title = self._icy_uuid = ""
         self._current_station = station
         self._save_last_station()
         # Snapshot browse list for next/prev cycling (only when playing from browse)
@@ -1143,6 +1155,7 @@ class RadioService(SourceBase):
         if ok:
             self._playing_state = "playing"
             self._start_state_poll()
+            self._start_icy_poll()
         else:
             # Roll back the pre-broadcast — otherwise GO toggles
             # pause/resume on a stream that never started.
@@ -1243,10 +1256,85 @@ class RadioService(SourceBase):
         artwork = (f"http://localhost:{self.port}/favicon"
                    f"?url={urllib.parse.quote(favicon, safe='')}") if favicon else ""
 
+        # A live title moves the station name down a line — the song is what
+        # you want to read first, and the station is still named right under
+        # it. Without one, nothing changes.
+        if self._icy_title and station.get("stationuuid", "") == self._icy_uuid:
+            return {"title": self._icy_title, "artist": self._name_for(station),
+                    "album": album, "artwork": artwork}
+
         return {"title": self._name_for(station), "artist": artist, "album": album,
                 "artwork": artwork}
 
     # ── Sveriges Radio now-playing ──
+
+    # ── Now-playing from the stream (ICY) ──
+
+    def _icy_url_for(self, station: dict) -> str:
+        """Where to read now-playing for this station, or "" if nowhere.
+
+        The station's own catalogue URL, which is the Icecast stream even for
+        the DR channels played as HLS: STATION_STREAM overrides only what is
+        played, so the entry still carries the URL that answers with ICY
+        metadata. DR's HLS carries none — it declares an ID3 stream in the
+        PMT and never puts a packet in it — so an .m3u8 is no use here.
+        """
+        url = station.get("url_resolved", station.get("url", ""))
+        if not url.startswith(("http://", "https://")) or ".m3u8" in url:
+            return ""
+        return url
+
+    async def _fetch_icy_title(self, url: str) -> str:
+        """One StreamTitle: connect, skip a metadata interval of audio, read
+        the metadata block, drop the connection. About 16 kB per read."""
+        async with self._api_session.get(
+                url, headers={"Icy-MetaData": "1"},
+                timeout=ICY_FETCH_TIMEOUT) as resp:
+            if resp.status != 200:
+                return ""
+            step = int(resp.headers.get("icy-metaint") or 0)
+            if not step or step > ICY_MAX_METAINT:
+                return ""
+            await resp.content.readexactly(step)
+            size = (await resp.content.readexactly(1))[0] * 16
+            if not size:
+                return ""
+            blob = await resp.content.readexactly(size)
+        match = re.search(r"StreamTitle='(.*?)';", blob.decode("utf-8", "replace"))
+        return match.group(1).strip() if match else ""
+
+    def _start_icy_poll(self):
+        if self._icy_poll_task and not self._icy_poll_task.done():
+            return
+        self._icy_poll_task = self._spawn(self._icy_poll_loop(), name="radio_icy_poll")
+
+    async def _icy_poll_loop(self):
+        """Follow the now-playing title while a station is playing.
+
+        Stations that send nothing — DR Nyheder, Radio Soft, The Voice all
+        send an empty StreamTitle — simply keep the station name as the
+        title, which is what the view showed before any of this.
+        """
+        while self._playing_state in ("playing", "paused"):
+            station = self._current_station
+            url = self._icy_url_for(station) if station else ""
+            if url:
+                uuid = station.get("stationuuid", "")
+                try:
+                    title = await self._fetch_icy_title(url)
+                except asyncio.CancelledError:
+                    return
+                except Exception as e:
+                    log.debug("ICY read failed for %s: %s", station.get("name"), e)
+                    title = None            # leave the last title standing
+                if title is not None and (title, uuid) != (self._icy_title, self._icy_uuid):
+                    self._icy_title, self._icy_uuid = title, uuid
+                    if station is self._current_station:
+                        log.info("Now playing on %s: %s",
+                                 station.get("name"), title or "(ingen titel)")
+                        await self.post_media_update(**self._build_meta(station),
+                                                     state=self._playing_state)
+            await asyncio.sleep(ICY_POLL_INTERVAL)
 
     async def _sr_poll_loop(self):
         """Background poller for SR now-playing metadata."""

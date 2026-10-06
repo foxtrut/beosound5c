@@ -11,6 +11,7 @@ stay English whatever the language is.
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -32,6 +33,40 @@ def _svc(mock_config, monkeypatch, language="da"):
     svc = RadioService()
     svc._favourites = []
     return svc
+
+
+class _IcyBody:
+    """Just enough of aiohttp's streaming body for _fetch_icy_title."""
+
+    def __init__(self, data: bytes):
+        self._data, self._pos = data, 0
+
+    async def readexactly(self, n: int) -> bytes:
+        chunk = self._data[self._pos:self._pos + n]
+        if len(chunk) < n:
+            raise EOFError("stream ended")
+        self._pos += n
+        return chunk
+
+
+class _IcyResponse:
+    def __init__(self, metaint, payload: bytes, status: int = 200):
+        self.status = status
+        self.headers = {} if metaint is None else {"icy-metaint": str(metaint)}
+        audio = b"\0" * (metaint if isinstance(metaint, int) and metaint < 100_000 else 0)
+        block = bytes([(len(payload) + 15) // 16]) + payload.ljust(
+            ((len(payload) + 15) // 16) * 16, b"\0")
+        self.content = _IcyBody(audio + block)
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+def _icy_response(metaint, payload, status=200):
+    return _IcyResponse(metaint, payload, status)
 
 
 class TestNormalise:
@@ -508,3 +543,85 @@ class TestDisplayNames:
                             "url_resolved": "http://x"}]
         found = _run(svc._find_station_by_name("østjylland"))
         assert found is not None and found["stationuuid"] == self.P4
+
+
+class TestIcyNowPlaying:
+    """The song title comes from the stream's ICY metadata. DR is played as
+    HLS, which carries none, but the catalogue entry still holds DR's Icecast
+    URL — which does — so that is what gets read."""
+
+    P4 = "9610bbeb-0601-11e8-ae97-52543be04c81"
+    STATION = {"stationuuid": P4, "name": "DR P4 Østjyllands Radio",
+               "url_resolved": "http://live-icy.dr.dk/A/A14H.mp3",
+               "tags": "regional radio", "codec": "MP3", "bitrate": 128,
+               "country": "Denmark"}
+
+    def test_reads_from_the_catalogue_url_not_the_played_one(self, mock_config, monkeypatch):
+        """_stream_for sends playback to HLS; the ICY read must not follow it
+        there, or DR would never report a title."""
+        svc = _svc(mock_config, monkeypatch)
+        assert ".m3u8" in svc._stream_for(self.STATION)
+        assert svc._icy_url_for(self.STATION) == "http://live-icy.dr.dk/A/A14H.mp3"
+
+    def test_an_hls_only_station_has_nowhere_to_read(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        assert svc._icy_url_for({"stationuuid": "x",
+                                 "url_resolved": "https://e.com/x/master.m3u8"}) == ""
+
+    def test_title_replaces_the_name_and_moves_it_down(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        svc._icy_title, svc._icy_uuid = "Nick Cave & The Bad Seeds - Into My Arms", self.P4
+        meta = svc._build_meta(self.STATION)
+        assert meta["title"] == "Nick Cave & The Bad Seeds - Into My Arms"
+        assert meta["artist"] == "DR P4 Østjylland"      # the display name
+        assert "AAC 320kbps" in meta["album"]
+
+    def test_no_title_leaves_the_view_as_it_was(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        meta = svc._build_meta(self.STATION)
+        assert meta["title"] == "DR P4 Østjylland"
+        assert meta["artist"] == "Regionalradio"
+
+    def test_a_title_from_another_station_is_not_shown(self, mock_config, monkeypatch):
+        """Stale state must not label one station with another's song."""
+        svc = _svc(mock_config, monkeypatch)
+        svc._icy_title, svc._icy_uuid = "Billy Idol - White Wedding", "some-other-uuid"
+        assert svc._build_meta(self.STATION)["title"] == "DR P4 Østjylland"
+
+    def test_parses_a_streamtitle(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        payload = b"StreamTitle='Billy Idol - White Wedding';StreamUrl='';\x00\x00"
+        resp = _icy_response(metaint=16, payload=payload)
+        svc._api_session = SimpleNamespace(get=lambda *a, **kw: resp)
+        assert _run(svc._fetch_icy_title("http://x/y.mp3")) == "Billy Idol - White Wedding"
+
+    def test_empty_streamtitle_reads_as_no_title(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        resp = _icy_response(metaint=16, payload=b"StreamTitle='';StreamUrl='';\x00")
+        svc._api_session = SimpleNamespace(get=lambda *a, **kw: resp)
+        assert _run(svc._fetch_icy_title("http://x/y.mp3")) == ""
+
+    def test_a_stream_without_icy_is_not_read(self, mock_config, monkeypatch):
+        """No icy-metaint means no metadata channel — don't read audio
+        waiting for one that never comes."""
+        svc = _svc(mock_config, monkeypatch)
+        resp = _icy_response(metaint=None, payload=b"")
+        svc._api_session = SimpleNamespace(get=lambda *a, **kw: resp)
+        assert _run(svc._fetch_icy_title("http://x/y.mp3")) == ""
+
+    def test_absurd_metaint_is_refused(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        resp = _icy_response(metaint=50_000_000, payload=b"")
+        svc._api_session = SimpleNamespace(get=lambda *a, **kw: resp)
+        assert _run(svc._fetch_icy_title("http://x/y.mp3")) == ""
+
+    def test_changing_station_drops_the_old_song(self, mock_config, monkeypatch):
+        svc = _svc(mock_config, monkeypatch)
+        svc._icy_title, svc._icy_uuid = "Old Song", "old-uuid"
+        monkeypatch.setattr(RadioService, "player_play", AsyncMock(return_value=True))
+        monkeypatch.setattr(RadioService, "register", AsyncMock())
+        monkeypatch.setattr(RadioService, "post_media_update", AsyncMock())
+        monkeypatch.setattr(RadioService, "_start_state_poll", lambda self: None)
+        monkeypatch.setattr(RadioService, "_start_icy_poll", lambda self: None)
+        _run(svc._play_station(dict(self.STATION)))
+        assert svc._icy_title == "" and svc._icy_uuid == ""
