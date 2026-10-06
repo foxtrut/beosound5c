@@ -58,6 +58,12 @@ CURATED_SVERIGE = [
     "8b00bcfc-4d94-11ea-b877-52543be04c81",  # Retro FM Skåne
 ]
 
+# P4 and P5 are the Østjylland feeds. DR's own ICY descriptions are what
+# settles which is which — the database's names disagree with each other,
+# and it was Radio Browser listing "DR P5 København" on A25H that had this
+# list playing København under the name "DR P5". A25H is "P5", A24H is
+# "P5 Østjylland", A28H is "P5 København", straight from live-icy.dr.dk.
+#
 # The DR entries are the database's MP3 ones, but what actually plays and
 # what you see come from STATION_STREAM and STATION_ARTWORK below: DR's own
 # AAC 325k HLS and DR's own channel logos. The database's "(AAC)" entries
@@ -68,7 +74,7 @@ CURATED_DANMARK = [
     "960f5af4-0601-11e8-ae97-52543be04c81",  # DR P2
     "960f5bcd-0601-11e8-ae97-52543be04c81",  # DR P3
     "9610bbeb-0601-11e8-ae97-52543be04c81",  # DR P4 Østjylland
-    "9610bcba-0601-11e8-ae97-52543be04c81",  # DR P5
+    "b69d7997-fec2-419b-b33d-d01f7ebba8b8",  # DR P5 Østjylland
     "9610bd91-0601-11e8-ae97-52543be04c81",  # DR P6 BEAT
     "9610c01b-0601-11e8-ae97-52543be04c81",  # DR P8 Jazz
     "9610c1ca-0601-11e8-ae97-52543be04c81",  # DR Nyheder
@@ -113,7 +119,7 @@ STATION_STREAM = {
     "960f5af4-0601-11e8-ae97-52543be04c81": _dr_hls("p2"),
     "960f5bcd-0601-11e8-ae97-52543be04c81": _dr_hls("p3"),
     "9610bbeb-0601-11e8-ae97-52543be04c81": _dr_hls("p4ostjylland"),
-    "9610bcba-0601-11e8-ae97-52543be04c81": _dr_hls("p5kobenhavn"),
+    "b69d7997-fec2-419b-b33d-d01f7ebba8b8": _dr_hls("p5ostjylland"),
     "9610bd91-0601-11e8-ae97-52543be04c81": _dr_hls("p6"),
     "9610c01b-0601-11e8-ae97-52543be04c81": _dr_hls("p8"),
 }
@@ -168,7 +174,7 @@ STATION_ARTWORK = {
     "960f5af4-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p2.041e766f.svg",
     "960f5bcd-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p3.28743ad0.svg",
     "9610bbeb-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p4.a9a465ed.svg",
-    "9610bcba-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p5.1704bd78.svg",
+    "b69d7997-fec2-419b-b33d-d01f7ebba8b8": f"{DR_LOGO_BASE}/p5.1704bd78.svg",
     "9610bd91-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p6beat.4efb4634.svg",
     "9610c01b-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p8jazz.3748d702.svg",
     # Nothing upstream to point at for these four: DR Nyheder has no channel
