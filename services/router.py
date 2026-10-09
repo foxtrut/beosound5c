@@ -81,6 +81,7 @@ MENU_LABELS = {
         "scenes": "SCENER", "security": "SIKKERHED", "showing": "VISER",
         "weather": "VEJR", "calendar": "KALENDER",
         "todo": "HUSKELISTE",
+        "contacts": "KONTAKTER",
     },
 }
 

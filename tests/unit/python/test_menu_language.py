@@ -89,3 +89,9 @@ def test_todo_list_is_huskeliste_in_danish_and_to_do_otherwise():
     assert _titles(_make_router(menu={"TO-DO": "todo"}, language="da"))["todo"] == "HUSKELISTE"
     assert _titles(_make_router(menu={"TO-DO": "todo"}, language="en"))["todo"] == "TO-DO"
     assert _titles(_make_router(menu={"TO-DO": "todo"}, language="auto"))["todo"] == "TO-DO"
+
+
+def test_contacts_is_kontakter_in_danish_and_contacts_otherwise():
+    assert _titles(_make_router(menu={"CONTACTS": "contacts"}, language="da"))["contacts"] == "KONTAKTER"
+    assert _titles(_make_router(menu={"CONTACTS": "contacts"}, language="en"))["contacts"] == "CONTACTS"
+    assert _titles(_make_router(menu={"CONTACTS": "contacts"}, language="auto"))["contacts"] == "CONTACTS"
