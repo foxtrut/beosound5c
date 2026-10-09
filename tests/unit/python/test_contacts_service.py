@@ -3,6 +3,8 @@ the guards that keep other web pages (and DNS rebinding) away from the
 contacts — which are personal data."""
 from __future__ import annotations
 
+import datetime
+import io
 import json
 import re
 from pathlib import Path
@@ -11,9 +13,11 @@ import pytest
 import pytest_asyncio
 from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
+from PIL import Image
 
 import sources.contacts.service as service_module
 from sources.contacts.service import ContactsService, page_language
+from contacts_photo import PHOTO_SIZE, PhotoError, normalise_photo
 from contacts_store import ContactError, ContactsStore, NotFound, clean_field
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -75,6 +79,77 @@ def test_a_hand_written_file_gets_ids_and_a_broken_one_is_set_aside(tmp_path):
     path.write_text("{ broken")
     assert ContactsStore(str(path)).snapshot()["contacts"] == []
     assert list(tmp_path.glob("contacts.json.corrupt-*"))
+
+
+def test_birthday_must_be_a_real_past_date(tmp_path):
+    store = ContactsStore(str(tmp_path / "c.json"))
+    contact, _ = store.add({"name": "Bo", "birthday": "1980-03-12"})
+    assert contact["birthday"] == "1980-03-12"
+    tomorrow = (datetime.date.today() + datetime.timedelta(days=1)).isoformat()
+    for bad in ("1980-02-30", "12-03-1980", "1899-12-31", tomorrow, 19800312):
+        with pytest.raises(ContactError, match="invalid_birthday"):
+            store.update(contact["id"], {"birthday": bad})
+    store.update(contact["id"], {"birthday": ""})
+    assert store.snapshot()["contacts"][0]["birthday"] == ""
+
+
+def test_a_stored_future_birthday_survives_a_boot_with_an_old_clock(tmp_path):
+    """The device has no RTC and can start with last shutdown's date."""
+    path = tmp_path / "c.json"
+    future = (datetime.date.today() + datetime.timedelta(days=30)).isoformat()
+    path.write_text(json.dumps({"contacts": [{"name": "Bo", "birthday": future}]}))
+    assert ContactsStore(str(path)).snapshot()["contacts"][0]["birthday"] == future
+
+
+# ── Photos ───────────────────────────────────────────────────────────────────
+
+def _image_bytes(fmt="JPEG", size=(1200, 800), exif_gps=False):
+    img = Image.new("RGB", size, (200, 30, 30))
+    out = io.BytesIO()
+    kwargs = {}
+    if exif_gps:
+        exif = Image.Exif()
+        exif[0x8825] = {1: "N", 2: (55.0, 40.0, 0.0)}   # GPSInfo
+        exif[0x010F] = "PhoneMaker"
+        kwargs["exif"] = exif
+    img.save(out, fmt, **kwargs)
+    return out.getvalue()
+
+
+def test_photos_are_reencoded_square_without_metadata():
+    jpeg = normalise_photo(_image_bytes(exif_gps=True))
+    with Image.open(io.BytesIO(jpeg)) as img:
+        assert img.format == "JPEG"
+        assert img.size == (PHOTO_SIZE, PHOTO_SIZE)
+        assert not img.getexif()
+    assert normalise_photo(_image_bytes("PNG", (300, 500)))[:3] == b"\xff\xd8\xff"
+
+
+@pytest.mark.parametrize("data", [b"", b"not an image", b"<svg xmlns='http://www.w3.org/2000/svg'/>"])
+def test_non_pictures_are_refused(data):
+    with pytest.raises(PhotoError, match="photo_invalid"):
+        normalise_photo(data)
+
+
+def test_photo_files_follow_the_contact(tmp_path):
+    store = ContactsStore(str(tmp_path / "c.json"))
+    contact, _ = store.add({"name": "Bo"})
+    assert contact["photo"] == ""
+    saved, _ = store.set_photo(contact["id"], b"jpeg")
+    path = Path(store.photo_path(contact["id"]))
+    assert path.read_bytes() == b"jpeg" and re.fullmatch(r"[0-9a-f]{16}", saved["photo"])
+    assert path.stat().st_mode & 0o777 == 0o600
+    again, _ = store.set_photo(contact["id"], b"jpeg2")
+    assert again["photo"] != saved["photo"], "a new picture must get a new cache token"
+
+    store.clear_photo(contact["id"])
+    assert not path.exists() and store.photo_token(contact["id"]) == ""
+
+    store.set_photo(contact["id"], b"jpeg")
+    store.delete(contact["id"])
+    assert not path.exists()
+    with pytest.raises(NotFound):
+        store.photo_path("../../etc/passwd")
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────────────
@@ -244,7 +319,8 @@ def test_every_error_the_page_shows_is_translated_in_both_languages():
     js = (REPO_ROOT / "services/sources/contacts/phone/app.js").read_text()
     blocks = re.findall(r"errors: \{(.*?)\n\s*\},", js, re.DOTALL)
     assert len(blocks) == 2, "expected an errors table for en and da"
-    for code in ("name_missing", "too_long", "invalid", "full", "not_found", "save_failed"):
+    for code in ("name_missing", "too_long", "invalid", "full", "not_found", "save_failed",
+                 "invalid_birthday", "photo_invalid", "photo_too_large", "not_image"):
         for block in blocks:
             assert re.search(rf"\b{code}: ", block), code
 
@@ -258,3 +334,51 @@ def test_config_page_links_to_the_phone_page():
     page = (REPO_ROOT / "web/softarc/config.html").read_text()
     entry = next(line for line in page.splitlines() if "key: 'CONTACTS'" in line)
     assert "${location.hostname}:8794/" in entry
+
+
+@pytest.mark.asyncio
+async def test_photo_upload_serve_and_remove(client, service):
+    contact = (await (await _add(client, {"name": "Bo"})).json())["contact"]
+    url = f"/api/contacts/{contact['id']}/photo"
+    assert (await client.get(url)).status == 404
+
+    resp = await client.put(url, data=_image_bytes(), headers={"Content-Type": "image/jpeg"})
+    assert resp.status == 200
+    token = (await resp.json())["contact"]["photo"]
+    assert token
+
+    resp = await client.get(f"{url}?v={token}")
+    assert resp.status == 200 and resp.content_type == "image/jpeg"
+    with Image.open(io.BytesIO(await resp.read())) as img:
+        assert img.size == (PHOTO_SIZE, PHOTO_SIZE)
+
+    listed = (await (await client.get("/api/contacts")).json())["contacts"][0]
+    assert listed["photo"] == token
+
+    assert (await client.delete(url)).status == 200
+    assert (await client.get(url)).status == 404
+    assert service.broadcasts[-1][0] == "contacts_update"
+
+
+@pytest.mark.asyncio
+async def test_bad_photo_uploads_are_refused(client):
+    contact = (await (await _add(client, {"name": "Bo"})).json())["contact"]
+    url = f"/api/contacts/{contact['id']}/photo"
+    resp = await client.put(url, data=b"<html>", headers={"Content-Type": "text/html"})
+    assert resp.status == 415
+    resp = await client.put(url, data=b"garbage", headers={"Content-Type": "image/jpeg"})
+    assert await resp.json() == {"error": "photo_invalid"}
+    resp = await client.put("/api/contacts/" + "f" * 32 + "/photo", data=_image_bytes(),
+                            headers={"Content-Type": "image/jpeg"})
+    assert resp.status == 404
+    resp = await client.put(url, data=_image_bytes(), headers={
+        "Content-Type": "image/jpeg", "Origin": "https://evil.example"})
+    assert resp.status == 403
+
+
+@pytest.mark.asyncio
+async def test_birthday_goes_through_the_api(client):
+    resp = await _add(client, {"name": "Bo", "birthday": "1980-03-12"})
+    assert (await resp.json())["contact"]["birthday"] == "1980-03-12"
+    resp = await _add(client, {"name": "Bo", "birthday": "1980-13-01"})
+    assert await resp.json() == {"error": "invalid_birthday"}

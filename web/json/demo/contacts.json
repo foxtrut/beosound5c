@@ -7,7 +7,9 @@
    "phone": "+45 21 34 56 78",
    "email": "anna@example.com",
    "address": "Vestergade 12, 8000 Aarhus C",
-   "note": "Nabo"
+   "birthday": "1980-03-12",
+   "note": "Nabo",
+   "photo": ""
   },
   {
    "id": "00000000000000000000000000000002",
@@ -15,7 +17,9 @@
    "phone": "+45 40 11 22 33",
    "email": "",
    "address": "",
-   "note": ""
+   "birthday": "",
+   "note": "",
+   "photo": ""
   },
   {
    "id": "00000000000000000000000000000003",
@@ -23,7 +27,9 @@
    "phone": "+45 30 98 76 54",
    "email": "mette@example.com",
    "address": "",
-   "note": "Tandlæge"
+   "birthday": "1975-11-02",
+   "note": "Tandlæge",
+   "photo": ""
   },
   {
    "id": "00000000000000000000000000000004",
@@ -31,7 +37,9 @@
    "phone": "+45 60 12 12 12",
    "email": "soren@example.com",
    "address": "Strandvejen 4, 2900 Hellerup",
-   "note": ""
+   "birthday": "1992-07-24",
+   "note": "",
+   "photo": ""
   }
  ]
 }

@@ -25,6 +25,16 @@
 
         <form id="editor" autocomplete="off" hidden>
             <h2 id="editor-title"></h2>
+            <div class="photo-edit">
+                <div id="photo-preview" class="avatar large"></div>
+                <div class="photo-buttons">
+                    <label class="secondary file-button">
+                        <span data-i18n="choosePhoto">Choose photo</span>
+                        <input id="photo-input" type="file" accept="image/*" class="visually-hidden">
+                    </label>
+                    <button id="photo-remove" type="button" class="link" data-i18n="removePhoto" hidden>Remove photo</button>
+                </div>
+            </div>
             <label><span data-i18n="name">Name</span>
                 <input name="name" type="text" maxlength="80" required autocapitalize="words"></label>
             <label><span data-i18n="phone">Phone</span>
@@ -33,6 +43,8 @@
                 <input name="email" type="email" maxlength="120" autocapitalize="off" spellcheck="false"></label>
             <label><span data-i18n="address">Address</span>
                 <input name="address" type="text" maxlength="160"></label>
+            <label><span data-i18n="birthday">Birthday</span>
+                <input name="birthday" type="date" min="1900-01-01"></label>
             <label><span data-i18n="note">Note</span>
                 <input name="note" type="text" maxlength="200" autocapitalize="sentences"></label>
             <div class="actions">

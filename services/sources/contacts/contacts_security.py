@@ -27,7 +27,7 @@ import urllib.parse
 
 PAGE_CSP = (
     "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; "
-    "img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    "img-src 'self' blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 )
 
 

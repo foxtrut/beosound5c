@@ -197,14 +197,14 @@ def build() -> dict[str, object]:
     # Contacts — the /api/contacts envelope, sorted by name like the service.
     files["contacts.json"] = {"version": 7, "contacts": [
         {"id": f"{n:032x}", "name": name, "phone": phone, "email": email,
-         "address": address, "note": note}
-        for n, (name, phone, email, address, note) in enumerate([
+         "address": address, "birthday": birthday, "note": note, "photo": ""}
+        for n, (name, phone, email, address, birthday, note) in enumerate([
             ("Anna Jensen", "+45 21 34 56 78", "anna@example.com",
-             "Vestergade 12, 8000 Aarhus C", "Nabo"),
-            ("Bo Nielsen", "+45 40 11 22 33", "", "", ""),
-            ("Mette Hansen", "+45 30 98 76 54", "mette@example.com", "", "Tandlæge"),
+             "Vestergade 12, 8000 Aarhus C", "1980-03-12", "Nabo"),
+            ("Bo Nielsen", "+45 40 11 22 33", "", "", "", ""),
+            ("Mette Hansen", "+45 30 98 76 54", "mette@example.com", "", "1975-11-02", "Tandlæge"),
             ("Søren Larsen", "+45 60 12 12 12", "soren@example.com",
-             "Strandvejen 4, 2900 Hellerup", ""),
+             "Strandvejen 4, 2900 Hellerup", "1992-07-24", ""),
         ], start=1)
     ]}
 

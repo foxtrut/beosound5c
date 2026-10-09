@@ -4,8 +4,9 @@ BeoSound 5c — Contacts (CONTACTS on the arc, KONTAKTER in Danish).
 
 The contacts are edited from a phone, on a small web page this service serves
 at http://<device>:8794/ (linked from the CONTACTS entry on the config page),
-and shown on the arc under CONTACTS, where GO opens a contact's details
-(phone, e-mail, address, note).
+and shown on the arc under CONTACTS — with the contact's picture on its tile
+when one has been added — where GO opens the details (phone, e-mail,
+address, birthday, note).
 
 Both the page and the arc view follow the device's "language" setting; with
 "auto" the page follows the phone's own language (Accept-Language), just as
@@ -20,10 +21,12 @@ rebinding), may not come from another site (Origin), and changes need a small
 JSON body. Contacts are personal data, so unlike the other sources this one
 never answers another site's page with a CORS grant — only the device's own UI
 and the phone page may read them. The page ships a strict CSP and never
-renders contact text as HTML.
+renders contact text as HTML. Uploaded pictures are re-encoded before they are
+stored (contacts_photo.py), which also strips the phone's EXIF/GPS data.
 
-Storage: ~/.beosound5c_contacts.json (0600, rewritten atomically). Override
-with the BEO_CONTACTS_FILE environment variable.
+Storage: ~/.beosound5c_contacts.json (0600, rewritten atomically) and the
+pictures in ~/.beosound5c_contacts_photos/. Override with the
+BEO_CONTACTS_FILE environment variable (the photos directory follows it).
 
 Port: 8794
 """
@@ -45,8 +48,9 @@ sys.path.insert(0, HERE)
 
 from lib.config import cfg  # noqa: E402
 from lib.source_base import SourceBase  # noqa: E402
+from contacts_photo import MAX_UPLOAD_BYTES, PhotoError, normalise_photo  # noqa: E402
 from contacts_security import PAGE_CSP, HostPolicy, apply_security_headers  # noqa: E402
-from contacts_store import ContactError, ContactsStore, NotFound  # noqa: E402
+from contacts_store import FIELDS, ContactError, ContactsStore, NotFound  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -99,12 +103,20 @@ def _api(handler):
             return web.json_response({"error": e.code}, status=e.status)
         except ContactError as e:
             return web.json_response({"error": str(e)}, status=400)
+        except PhotoError as e:
+            status = 413 if str(e) == "photo_too_large" else 400
+            return web.json_response({"error": str(e)}, status=status)
         except NotFound:
             return web.json_response({"error": "not_found"}, status=404)
         except OSError:
             log.exception("Could not save the contacts")
             return web.json_response({"error": "save_failed"}, status=500)
     return wrapper
+
+
+def _read_file(path: str) -> bytes:
+    with open(path, "rb") as f:
+        return f.read()
 
 
 class ContactsService(SourceBase):
@@ -147,6 +159,9 @@ class ContactsService(SourceBase):
         app.router.add_post("/api/contacts", self._handle_add)
         app.router.add_patch("/api/contacts/{contact_id}", self._handle_update)
         app.router.add_delete("/api/contacts/{contact_id}", self._handle_delete)
+        app.router.add_get("/api/contacts/{contact_id}/photo", self._handle_photo_get)
+        app.router.add_put("/api/contacts/{contact_id}/photo", self._handle_photo_put)
+        app.router.add_delete("/api/contacts/{contact_id}/photo", self._handle_photo_delete)
         app.router.add_route("OPTIONS", "/api/{tail:.*}", self._handle_preflight)
 
     def _make_guard(self):
@@ -201,7 +216,7 @@ class ContactsService(SourceBase):
 
     async def _handle_preflight(self, request):
         return web.Response(status=204, headers={
-            "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE",
+            "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE",
             "Access-Control-Allow-Headers": "Content-Type",
             "Access-Control-Max-Age": "600",
         })
@@ -231,6 +246,49 @@ class ContactsService(SourceBase):
         self._changed(version)
         return web.json_response({"version": version})
 
+    @_api
+    async def _handle_photo_get(self, request):
+        contact_id = request.match_info["contact_id"]
+        token = self._store.photo_token(contact_id)
+        if not token:
+            raise NotFound(contact_id)
+        try:
+            body = await asyncio.to_thread(_read_file, self._store.photo_path(contact_id))
+        except FileNotFoundError:
+            raise NotFound(contact_id) from None
+        # The views ask for ?v=<token>, which changes with every new picture.
+        return web.Response(body=body, content_type="image/jpeg", headers={
+            "Cache-Control": "private, max-age=86400",
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+        })
+
+    @_api
+    async def _handle_photo_put(self, request):
+        if not request.content_type.startswith("image/"):
+            raise ApiError(415, "not_image")
+        length = request.content_length
+        if length is None:
+            raise ApiError(411, "length_required")
+        if length > MAX_UPLOAD_BYTES:
+            raise ApiError(413, "photo_too_large")
+        contact_id = request.match_info["contact_id"]
+        self._store.photo_token(contact_id)        # 404 before reading the body
+        try:
+            data = await request.content.readexactly(length)
+        except asyncio.IncompleteReadError:
+            raise ApiError(400, "photo_invalid") from None
+        jpeg = await asyncio.to_thread(normalise_photo, data)
+        contact, version = await asyncio.to_thread(self._store.set_photo, contact_id, jpeg)
+        self._changed(version)
+        return web.json_response({"contact": contact, "version": version})
+
+    @_api
+    async def _handle_photo_delete(self, request):
+        contact, version = await asyncio.to_thread(
+            self._store.clear_photo, request.match_info["contact_id"])
+        self._changed(version)
+        return web.json_response({"contact": contact, "version": version})
+
     # ── Helpers ──
 
     @staticmethod
@@ -249,7 +307,7 @@ class ContactsService(SourceBase):
             raise ApiError(400, "invalid_json") from None
         if not isinstance(data, dict):
             raise ApiError(400, "invalid_json")
-        if set(data) - {"name", "phone", "email", "address", "note"}:
+        if set(data) - set(FIELDS):
             raise ApiError(400, "unknown_fields")
         return data
 

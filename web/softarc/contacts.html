@@ -41,18 +41,37 @@
         const EMPTY_ID = 'contacts-empty';
 
         const CONTACTS_STRINGS = {
-            en: { empty: 'No contacts yet' },
-            da: { empty: 'Ingen kontakter endnu' },
+            en: { empty: 'No contacts yet', age: (n) => `${n} years` },
+            da: { empty: 'Ingen kontakter endnu', age: (n) => `${n} år` },
         };
 
-        function contactsText(key) {
+        function contactsLang() {
             // An explicit device setting (config.json's "language") wins over the
             // browser's own locale when set to anything but "auto"/unset — same
             // rule as the weather, calendar and to-do views.
             const override = window.AppConfig?.language;
             const lang = ((override && override !== 'auto') ? override : navigator.language || 'en')
                 .toLowerCase().split('-')[0];
-            return (CONTACTS_STRINGS[lang] || CONTACTS_STRINGS.en)[key];
+            return CONTACTS_STRINGS[lang] ? lang : 'en';
+        }
+
+        function contactsText(key) {
+            return CONTACTS_STRINGS[contactsLang()][key];
+        }
+
+        // "1980-03-12" → "12. marts 1980 (46 år)" / "12 March 1980 (46 years)".
+        function formatBirthday(iso) {
+            const [y, m, d] = iso.split('-').map(Number);
+            if (!y || !m || !d) return iso;
+            const lang = contactsLang();
+            const date = new Intl.DateTimeFormat(lang === 'da' ? 'da-DK' : 'en-GB',
+                { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+                .format(new Date(Date.UTC(y, m - 1, d)));
+            const now = new Date();
+            let age = now.getFullYear() - y;
+            if (now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) age -= 1;
+            // The device can boot with an old date; leave the age out rather than show nonsense.
+            return age >= 0 ? `${date} (${contactsText('age')(age)})` : date;
         }
 
         // Detail rows shown when GO is pressed on a contact, in this order.
@@ -60,13 +79,18 @@
             ['phone', 'phone'],
             ['email', 'envelope'],
             ['address', 'map-pin'],
+            ['birthday', 'cake'],
             ['note', 'note'],
         ];
 
         function contactDetails(raw) {
             return DETAIL_FIELDS
                 .filter(([field]) => raw[field])
-                .map(([field, icon]) => ({ id: `${raw.id}:${field}`, text: raw[field], icon }));
+                .map(([field, icon]) => ({
+                    id: `${raw.id}:${field}`,
+                    text: field === 'birthday' ? formatBirthday(raw[field]) : raw[field],
+                    icon,
+                }));
         }
 
         function mapContact(raw) {
@@ -77,13 +101,19 @@
             // The arc id carries the contact's content: ArcList only moves
             // elements whose ids are unchanged on reload, so an edit from the
             // phone would otherwise keep showing the old name.
-            return {
-                id: [raw.id, raw.name, raw.phone, raw.email, raw.address, raw.note].join(':'),
+            const item = {
+                id: [raw.id, raw.name, raw.phone, raw.email, raw.address, raw.birthday, raw.note, raw.photo].join(':'),
                 name: raw.name,
-                icon: 'user',
-                color: '#fff',
                 details: contactDetails(raw),
             };
+            if (raw.photo) {
+                // The picture replaces the icon on the contact's tile.
+                item.image = `${CONTACTS_URL}/api/contacts/${encodeURIComponent(raw.id)}/photo?v=${encodeURIComponent(raw.photo)}`;
+            } else {
+                item.icon = 'user';
+                item.color = '#fff';
+            }
+            return item;
         }
 
         function mapDetail(raw) {
