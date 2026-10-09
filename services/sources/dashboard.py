@@ -3,14 +3,26 @@
 BeoSound 5c — Dashboard (DASHBOARD on the arc, OVERBLIK in Danish).
 
 One page of at-a-glance information instead of something to browse: what is
-playing, and how the device itself is doing (uptime, CPU temperature, load,
-memory, disk, network address). The clock and date on the page come from the
-browser, so this service only serves what the browser cannot see itself.
+playing, today's and tomorrow's electricity price hour by hour, and how the
+device itself is doing (uptime, CPU temperature, load, memory, disk, network
+address). The clock and date on the page come from the browser, so this
+service only serves what the browser cannot see itself.
 
-The data is gathered on request from /proc and the router's /router/status —
-nothing is cached or polled in the background, so an idle dashboard costs
-nothing. Every field is optional: on a machine without /proc (a Mac running the
-services for development) or with the router down, the page shows a dash.
+The device data is gathered on request from /proc and the router's
+/router/status. Electricity prices come from Strømligning's public API
+(stromligning.dk, no key), all-in prices per kWh — spot price, the net
+company's tariffs, taxes and VAT — for one net company. They are fetched when
+the page asks and at most every 15 minutes; nothing is polled in the
+background, so an idle dashboard costs nothing. Tomorrow's prices are
+Strømligning's forecast until the real ones are published (around 13:00), the
+same "prognose" stromligning.dk shows. Every field is optional: on a machine
+without /proc (a Mac running the services for development), with the router
+down or without a net company configured, the page leaves that part out.
+
+Config (config.json):
+    "dashboard": { "electricity_supplier": "dinel_c", "electricity_area": "DK1" }
+The supplier is the net company's id on stromligning.dk (the "netselskab="
+in its URLs); the area is DK1 (west of the Great Belt) or DK2 (east).
 
 Port: 8795
 """
@@ -22,6 +34,7 @@ import shutil
 import socket
 import sys
 import time
+from datetime import datetime, timedelta
 
 import aiohttp
 from aiohttp import web
@@ -41,6 +54,10 @@ log = logging.getLogger(__name__)
 
 PROC = "/proc"
 THERMAL_ZONE = "/sys/class/thermal/thermal_zone0/temp"
+
+PRICES_URL = "https://stromligning.dk/api/prices"
+PRICES_TTL = 15 * 60          # seconds a fetched price list is served from cache
+PRICES_RETRY = 2 * 60         # after a failed fetch, wait this long before the next try
 
 
 def _read(path):
@@ -144,6 +161,45 @@ def summarise_playing(status):
     }
 
 
+def hourly_prices(prices, day):
+    """Hour-by-hour all-in prices (kr/kWh) for one local date ("YYYY-MM-DD").
+
+    Strømligning answers in 15-minute steps for published prices and hourly
+    steps for its forecast; an hour's price is the mean of its steps, which is
+    what stromligning.dk's hourly table shows. Returns a list of
+    {"hour", "price", "forecast"}, sorted by hour; empty when the day is not
+    in the list."""
+    steps = {}
+    forecast = {}
+    for p in prices or []:
+        local = str(p.get("localDate", ""))
+        try:
+            total = float(p["price"]["total"])
+            hour = int(local[11:13])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if local[:10] != day:
+            continue
+        steps.setdefault(hour, []).append(total)
+        forecast[hour] = forecast.get(hour, False) or bool(p.get("forecast"))
+    return [
+        {"hour": h, "price": round(sum(v) / len(v), 4), "forecast": forecast[h]}
+        for h, v in sorted(steps.items())
+    ]
+
+
+def electricity_days(prices, now=None):
+    """Today and tomorrow, by the device's local clock, as
+    [{"date", "hours": [...]}, ...] — days without prices are left out."""
+    today = datetime.fromtimestamp(now if now is not None else time.time()).date()
+    days = []
+    for day in (today.isoformat(), (today + timedelta(days=1)).isoformat()):
+        hours = hourly_prices(prices, day)
+        if hours:
+            days.append({"date": day, "hours": hours})
+    return days
+
+
 class DashboardService(SourceBase):
     id = "dashboard"
     name = "Dashboard"
@@ -151,8 +207,23 @@ class DashboardService(SourceBase):
     player = "local"
     action_map = {}
 
+    def __init__(self):
+        super().__init__()
+        self._prices = None        # last good price list from Strømligning
+        self._prices_at = 0.0      # monotonic time of that fetch
+        self._prices_tried = 0.0   # monotonic time of the last attempt
+        self._supplier_name = ""
+        self._prices_lock = asyncio.Lock()
+
+    def _electricity_config(self):
+        supplier = str(cfg("dashboard", "electricity_supplier", default="") or "").strip()
+        area = str(cfg("dashboard", "electricity_area", default="DK1") or "DK1").strip().upper()
+        return supplier, area
+
     async def on_start(self):
-        log.info("Dashboard on port %d", self.port)
+        supplier, area = self._electricity_config()
+        log.info("Dashboard on port %d; electricity prices: %s", self.port,
+                 f"{supplier} ({area})" if supplier else "off (no dashboard.electricity_supplier)")
         await self.register("available")
 
     async def on_stop(self):
@@ -172,8 +243,42 @@ class DashboardService(SourceBase):
             log.debug("Router status unavailable: %s", e)
         return None
 
+    async def _fetch_prices(self, supplier, area):
+        params = {"priceArea": area, "supplierId": supplier, "forecast": "true"}
+        async with self._http_session.get(
+            PRICES_URL, params=params, timeout=aiohttp.ClientTimeout(total=10),
+        ) as resp:
+            resp.raise_for_status()
+            data = await resp.json()
+        prices = data.get("prices")
+        if not isinstance(prices, list):
+            raise ValueError("no price list in the answer")
+        name = (data.get("supplier") or {}).get("name") or supplier
+        return prices, name
+
+    async def _electricity(self):
+        """Today's and tomorrow's prices, from cache when it is fresh enough.
+        A failed fetch keeps serving the last good list."""
+        supplier, area = self._electricity_config()
+        if not supplier:
+            return None
+        async with self._prices_lock:
+            now = time.monotonic()
+            stale = self._prices is None or now - self._prices_at > PRICES_TTL
+            if stale and now - self._prices_tried > PRICES_RETRY:
+                self._prices_tried = now
+                try:
+                    self._prices, self._supplier_name = await self._fetch_prices(supplier, area)
+                    self._prices_at = now
+                except Exception as e:
+                    log.warning("Electricity prices unavailable: %s", e)
+        if self._prices is None:
+            return None
+        return {"area": area, "supplier": self._supplier_name or supplier,
+                "days": electricity_days(self._prices)}
+
     async def snapshot(self):
-        status = await self._router_status()
+        status, electricity = await asyncio.gather(self._router_status(), self._electricity())
         return {
             "device": cfg("device", default="BeoSound 5c"),
             "hostname": socket.gethostname(),
@@ -187,6 +292,7 @@ class DashboardService(SourceBase):
             "volume": round(status["volume"]) if status and status.get("volume") is not None else None,
             "output": (status or {}).get("output_device"),
             "playing": summarise_playing(status),
+            "electricity": electricity,
         }
 
     async def _handle_dashboard(self, request):

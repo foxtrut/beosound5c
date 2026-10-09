@@ -197,6 +197,20 @@
         'scenes.json': 'scenes.json',
     };
 
+    // dashboard.json's electricity prices carry fixed dates so the committed
+    // fixture stays stable; serve them as today and tomorrow so the chart has
+    // a current hour to mark.
+    function _relativizeDashboardDemo(data) {
+        const days = data.electricity?.days;
+        if (Array.isArray(days)) {
+            const pad = n => String(n).padStart(2, '0');
+            const key = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+            const day = new Date();
+            days.forEach(d => { d.date = key(day); day.setDate(day.getDate() + 1); });
+        }
+        return data;
+    }
+
     function jsonResponse(body, status = 200) {
         return new Response(JSON.stringify(body), {
             status,
@@ -304,6 +318,9 @@
             if (file) {
                 return realFetch(ROOT + DEMO_JSON + file, init).then(async r => {
                     if (!r.ok) return jsonResponse([]);
+                    if (file === 'dashboard.json') {
+                        return jsonResponse(_relativizeDashboardDemo(await r.json()));
+                    }
                     if (!KEYED_BY_PATH.has(file)) return r;
                     // Browse endpoints take a ?path= and return that level.
                     const levels = await r.json();

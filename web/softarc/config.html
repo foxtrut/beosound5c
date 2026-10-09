@@ -377,7 +377,10 @@ const CFG_SOURCE_DEFS = [
     { key: 'USB', label: 'USB', fields: [
         { fid: 'ir_source', label: 'IR trigger', path: ['usb','source'], isIr: true, optional: true },
     ]},
-    { key: 'DASHBOARD', label: 'Dashboard', hint: 'One page with the time, what is playing and how the device is doing (OVERBLIK in Danish).' },
+    { key: 'DASHBOARD', label: 'Dashboard', hint: 'One page with the time, electricity prices, what is playing and how the device is doing (OVERBLIK in Danish).', fields: [
+        { fid: 'electricity_supplier', label: 'Net company', path: ['dashboard','electricity_supplier'], placeholder: 'e.g. dinel_c', optional: true, hint: 'The netselskab= id from a stromligning.dk/elpriser link; blank hides the prices' },
+        { fid: 'electricity_area', label: 'Price area', path: ['dashboard','electricity_area'], placeholder: 'DK1', optional: true, hint: 'DK1 west of the Great Belt, DK2 east' },
+    ]},
     { key: 'NEWS', label: 'News', fields: [
         { fid: 'guardian_api_key', label: 'Guardian API key', path: ['news','guardian_api_key'], placeholder: 'From theguardian.com/developer' },
     ]},
