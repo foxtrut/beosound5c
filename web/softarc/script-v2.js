@@ -373,6 +373,9 @@ class ArcList {
     // ─── NAVIGATION: DRILL DOWN / GO BACK ────────────────────────────
 
     async drillDown() {
+        // Bound to GO here. The v1 arc (script.js) opens a folder with LEFT
+        // and plays on GO — see docs/arc-lists.md for why they differ and
+        // what unifying them would cost.
         this.snapToNearest();
 
         const idx = Math.round(this.currentIndex);
