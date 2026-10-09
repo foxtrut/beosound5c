@@ -82,6 +82,7 @@ MENU_LABELS = {
         "weather": "VEJR", "calendar": "KALENDER",
         "todo": "HUSKELISTE",
         "contacts": "KONTAKTER",
+        "dashboard": "OVERBLIK",
     },
 }
 

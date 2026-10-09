@@ -95,3 +95,9 @@ def test_contacts_is_kontakter_in_danish_and_contacts_otherwise():
     assert _titles(_make_router(menu={"CONTACTS": "contacts"}, language="da"))["contacts"] == "KONTAKTER"
     assert _titles(_make_router(menu={"CONTACTS": "contacts"}, language="en"))["contacts"] == "CONTACTS"
     assert _titles(_make_router(menu={"CONTACTS": "contacts"}, language="auto"))["contacts"] == "CONTACTS"
+
+
+def test_dashboard_is_overblik_in_danish_and_dashboard_otherwise():
+    assert _titles(_make_router(menu={"DASHBOARD": "dashboard"}, language="da"))["dashboard"] == "OVERBLIK"
+    assert _titles(_make_router(menu={"DASHBOARD": "dashboard"}, language="en"))["dashboard"] == "DASHBOARD"
+    assert _titles(_make_router(menu={"DASHBOARD": "dashboard"}, language="auto"))["dashboard"] == "DASHBOARD"
