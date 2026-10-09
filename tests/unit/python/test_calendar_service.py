@@ -76,7 +76,8 @@ async def test_fetch_refuses_oversized_body(monkeypatch):
 # clock is corrected or midnight passes.
 
 import types
-from datetime import date, timedelta
+from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 
 class _FakeClock:
@@ -110,6 +111,10 @@ class _FakeClock:
 
 def _service_with_clock(monkeypatch, clock):
     svc = CalendarService()
+    # Pin the zone and take "today" from the fake clock (svc._today()), never
+    # from date.today(): a fresh service renders in UTC, the host in its own
+    # zone, and for a couple of hours after midnight the two dates disagree.
+    svc._tz = ZoneInfo("Europe/Copenhagen")
     monkeypatch.setattr(calendar_service, "time", clock)
     monkeypatch.setattr(calendar_service, "asyncio", clock.shim_asyncio())
     return svc
@@ -165,7 +170,7 @@ async def test_wait_for_clock_gives_up_rather_than_hanging(monkeypatch, tmp_path
 async def test_refresh_waits_the_full_interval_when_nothing_changes(monkeypatch):
     clock = _FakeClock()
     svc = _service_with_clock(monkeypatch, clock)
-    svc._agenda_date = date.today()
+    svc._agenda_date = svc._today()
     start = clock.mono
     await svc._wait_for_refresh()
     assert clock.mono - start >= calendar_service.REFRESH_INTERVAL
@@ -176,7 +181,7 @@ async def test_refresh_wakes_early_when_the_clock_is_corrected(monkeypatch):
     """The boot-time NTP jump: wall time moves, elapsed time does not."""
     clock = _FakeClock(jump_at_sleep=2, jump=3 * 7 * 24 * 3600)
     svc = _service_with_clock(monkeypatch, clock)
-    svc._agenda_date = date.today()
+    svc._agenda_date = svc._today()
     start = clock.mono
     await svc._wait_for_refresh()
     assert clock.mono - start < calendar_service.REFRESH_INTERVAL
@@ -188,7 +193,7 @@ async def test_refresh_wakes_early_when_the_date_rolls_over(monkeypatch):
     """Left on past midnight, 'today' and 'tomorrow' are both wrong."""
     clock = _FakeClock()
     svc = _service_with_clock(monkeypatch, clock)
-    svc._agenda_date = date.today() - timedelta(days=1)
+    svc._agenda_date = svc._today() - timedelta(days=1)
     start = clock.mono
     await svc._wait_for_refresh()
     assert clock.mono - start < calendar_service.REFRESH_INTERVAL

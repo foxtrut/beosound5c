@@ -230,7 +230,7 @@ class CalendarService(SourceBase):
             waited += CLOCK_POLL_INTERVAL
             if self._clock_is_synced():
                 log.info("Clock synchronised after %ds — today is %s",
-                         waited, datetime.now(self._tz).date())
+                         waited, self._today())
                 return
         log.warning("Clock still not synchronised after %ds — fetching anyway",
                     CLOCK_WAIT_TIMEOUT)
@@ -255,10 +255,13 @@ class CalendarService(SourceBase):
             if abs(drift) > CLOCK_JUMP_TOLERANCE:
                 log.info("System clock jumped %+.0fs — rebuilding agenda", drift)
                 return
-            if self._agenda_date and datetime.now(self._tz).date() != self._agenda_date:
-                log.info("Date is now %s — rebuilding agenda",
-                         datetime.now(self._tz).date())
+            if self._agenda_date and self._today() != self._agenda_date:
+                log.info("Date is now %s — rebuilding agenda", self._today())
                 return
+
+    def _today(self):
+        """Local date by the same wall clock the jump detection reads."""
+        return datetime.fromtimestamp(time.time(), self._tz).date()
 
     async def _fetch_all(self):
         now = datetime.now(self._tz)
