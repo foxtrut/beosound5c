@@ -35,6 +35,7 @@ SOURCE_MODULES = [
     "sources.usb.service",
     "sources.radio.service",
     "sources.news",
+    "sources.dashboard",
     # sources.cd requires pyudev (Linux-only) — skipped conditionally below.
 ]
 

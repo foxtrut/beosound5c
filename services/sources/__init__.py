@@ -13,4 +13,5 @@ Current sources:
   plex/       — Plex music browsing and playback
   jellyfin/   — Jellyfin music browsing and playback
   news.py     — RSS/TTS news playback via local mpv
+  dashboard.py — at-a-glance page: now playing + device status
 """

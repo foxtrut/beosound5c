@@ -25,6 +25,7 @@ DEFAULT_SOURCE_HANDLES = {
     "usb": {"play", "pause", "next", "prev", "stop", "go", "left", "right",
             "up", "down"},
     "news": {"go", "left", "right", "up", "down"},
+    "dashboard": set(),
     "radio": {"play", "pause", "next", "prev", "stop", "go", "left", "right",
               "up", "down"} | _DIGITS,
     # No digits: an AirPlay session has no station or track numbering to
@@ -45,6 +46,7 @@ DEFAULT_SOURCE_PORTS = {
     "jellyfin": 8781,
     "radio": 8779,
     "airplay": 8782,
+    "dashboard": 8795,
     "join": 8766,
 }
 

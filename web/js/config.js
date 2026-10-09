@@ -46,6 +46,9 @@ const AppConfig = {
     // News source (Guardian)
     newsServiceUrl: 'http://localhost:8776',
 
+    // Dashboard source (OVERBLIK in Danish)
+    dashboardServiceUrl: 'http://localhost:8795',
+
     // Radio source (Radio Browser)
     radioServiceUrl: 'http://localhost:8779',
 

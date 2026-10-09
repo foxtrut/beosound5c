@@ -194,6 +194,17 @@ def build() -> dict[str, object]:
     # No stick inserted — the empty browse envelope a device would return.
     files["usb_browse.json"] = {"path": "", "parent": None, "name": "USB", "items": []}
 
+    # Dashboard — the /api/dashboard envelope, mid-track on a Pi 4.
+    files["dashboard.json"] = {
+        "device": "BeoSound 5c", "hostname": "beosound5c", "ip": "192.168.1.42",
+        "time": 0, "uptime_s": 3 * 86400 + 5 * 3600 + 17 * 60,
+        "load": [0.31, 0.27, 0.22], "memory": {"total_mb": 3794, "used_pct": 38},
+        "cpu_temp_c": 48.2, "disk": {"total_gb": 29.1, "free_gb": 18.4, "used_pct": 37},
+        "volume": 32, "output": "BeoLab 5",
+        "playing": {"state": "playing", "title": "Teardrop", "artist": "Massive Attack",
+                    "album": "Mezzanine", "source": "Spotify"},
+    }
+
     files["config.json"] = {
         "device": "BeoSound 5c",
         "setup_complete": True,
