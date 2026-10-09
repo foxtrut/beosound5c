@@ -46,6 +46,9 @@ const AppConfig = {
     // News source (Guardian)
     newsServiceUrl: 'http://localhost:8776',
 
+    // Contacts source (KONTAKTER in Danish)
+    contactsServiceUrl: 'http://localhost:8794',
+
     // Radio source (Radio Browser)
     radioServiceUrl: 'http://localhost:8779',
 

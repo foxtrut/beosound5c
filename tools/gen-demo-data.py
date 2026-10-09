@@ -194,6 +194,20 @@ def build() -> dict[str, object]:
     # No stick inserted — the empty browse envelope a device would return.
     files["usb_browse.json"] = {"path": "", "parent": None, "name": "USB", "items": []}
 
+    # Contacts — the /api/contacts envelope, sorted by name like the service.
+    files["contacts.json"] = {"contacts": [
+        {"id": f"{n:016x}", "name": name, "phone": phone, "email": email,
+         "address": address, "note": note}
+        for n, (name, phone, email, address, note) in enumerate([
+            ("Anna Jensen", "+45 21 34 56 78", "anna@example.com",
+             "Vestergade 12, 8000 Aarhus C", "Nabo"),
+            ("Bo Nielsen", "+45 40 11 22 33", "", "", ""),
+            ("Mette Hansen", "+45 30 98 76 54", "mette@example.com", "", "Tandlæge"),
+            ("Søren Larsen", "+45 60 12 12 12", "soren@example.com",
+             "Strandvejen 4, 2900 Hellerup", ""),
+        ], start=1)
+    ]}
+
     files["config.json"] = {
         "device": "BeoSound 5c",
         "setup_complete": True,
