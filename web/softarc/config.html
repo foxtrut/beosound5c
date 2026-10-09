@@ -377,7 +377,7 @@ const CFG_SOURCE_DEFS = [
     { key: 'USB', label: 'USB', fields: [
         { fid: 'ir_source', label: 'IR trigger', path: ['usb','source'], isIr: true, optional: true },
     ]},
-    { key: 'CONTACTS', label: 'Contacts', hint: 'Contact list (KONTAKTER in Danish). Read-only for now: edit <code>~/.beosound5c_contacts.json</code> on the device.' },
+    { key: 'CONTACTS', label: 'Contacts', hint: `Contact list (KONTAKTER in Danish), shown on the arc. Home network only.<div style="margin-top:6px"><a class="cfg-auth-link" href="http://${location.hostname}:8794/" target="_blank" rel="noreferrer">Edit contacts →</a></div>` },
     { key: 'NEWS', label: 'News', fields: [
         { fid: 'guardian_api_key', label: 'Guardian API key', path: ['news','guardian_api_key'], placeholder: 'From theguardian.com/developer' },
     ]},

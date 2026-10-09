@@ -195,8 +195,8 @@ def build() -> dict[str, object]:
     files["usb_browse.json"] = {"path": "", "parent": None, "name": "USB", "items": []}
 
     # Contacts — the /api/contacts envelope, sorted by name like the service.
-    files["contacts.json"] = {"contacts": [
-        {"id": f"{n:016x}", "name": name, "phone": phone, "email": email,
+    files["contacts.json"] = {"version": 7, "contacts": [
+        {"id": f"{n:032x}", "name": name, "phone": phone, "email": email,
          "address": address, "note": note}
         for n, (name, phone, email, address, note) in enumerate([
             ("Anna Jensen", "+45 21 34 56 78", "anna@example.com",

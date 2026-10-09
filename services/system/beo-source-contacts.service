@@ -1,5 +1,5 @@
 [Unit]
-Description=BeoSound5c Contacts Source (contact list, port 8794)
+Description=BeoSound5c Contacts Source (contact list, phone page on port 8794)
 After=network-online.target beo-input.service beo-router.service
 Wants=network-online.target
 OnFailure=beo-notify-failure@%n.service
@@ -17,7 +17,7 @@ Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
-# Holds personal data and needs nothing beyond its own file, so it gets less than the others:
+# This service answers phones on the network and holds personal data, so it gets less than the others:
 # no secrets file, read-only system, writes only under the service user's home.
 NoNewPrivileges=yes
 PrivateTmp=yes

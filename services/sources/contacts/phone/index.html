@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#000000">
+    <title>Contacts</title>
+    <link rel="stylesheet" href="app.css">
+    <script src="app.js" defer></script>
+</head>
+<body>
+    <main>
+        <header>
+            <h1 data-i18n="title">Contacts</h1>
+            <p id="status" class="status" role="status" hidden></p>
+        </header>
+
+        <div id="list-view">
+            <button id="new-contact" type="button" class="primary" data-i18n="newContact">New contact</button>
+            <ul id="contacts" class="contacts"></ul>
+            <p id="empty" class="empty" data-i18n="empty" hidden>No contacts yet.</p>
+        </div>
+
+        <form id="editor" autocomplete="off" hidden>
+            <h2 id="editor-title"></h2>
+            <label><span data-i18n="name">Name</span>
+                <input name="name" type="text" maxlength="80" required autocapitalize="words"></label>
+            <label><span data-i18n="phone">Phone</span>
+                <input name="phone" type="tel" maxlength="40" inputmode="tel"></label>
+            <label><span data-i18n="email">E-mail</span>
+                <input name="email" type="email" maxlength="120" autocapitalize="off" spellcheck="false"></label>
+            <label><span data-i18n="address">Address</span>
+                <input name="address" type="text" maxlength="160"></label>
+            <label><span data-i18n="note">Note</span>
+                <input name="note" type="text" maxlength="200" autocapitalize="sentences"></label>
+            <div class="actions">
+                <button type="submit" class="primary" data-i18n="save">Save</button>
+                <button id="cancel" type="button" class="secondary" data-i18n="cancel">Cancel</button>
+            </div>
+            <button id="delete" type="button" class="danger" data-i18n="delete" hidden>Delete contact</button>
+        </form>
+    </main>
+</body>
+</html>

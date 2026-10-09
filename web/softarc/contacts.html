@@ -74,8 +74,11 @@
                 return { id: raw.id, name: contactsText('empty'), icon: 'address-book', color: '#777', actionable: false };
             }
             // name is rendered with textContent by ArcList — never as HTML.
+            // The arc id carries the contact's content: ArcList only moves
+            // elements whose ids are unchanged on reload, so an edit from the
+            // phone would otherwise keep showing the old name.
             return {
-                id: raw.id,
+                id: [raw.id, raw.name, raw.phone, raw.email, raw.address, raw.note].join(':'),
                 name: raw.name,
                 icon: 'user',
                 color: '#fff',
