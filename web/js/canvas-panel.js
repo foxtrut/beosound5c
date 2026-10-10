@@ -135,6 +135,9 @@
             'position:absolute;left:' + rect.left + 'px;top:' + rect.top + 'px;' +
             'width:' + rect.width + 'px;color:white;pointer-events:none;z-index:2;';
         textMirror.innerHTML = src.innerHTML;
+        // Every child is mirrored as flat text, so the overlay must hold
+        // lines of text and nothing else — markup without text of its own
+        // collapses into whatever its descendants happen to say.
         var srcKids = src.children;
         var mirKids = textMirror.children;
         for (var i = 0; i < srcKids.length && i < mirKids.length; i++) {
@@ -416,6 +419,13 @@
         // Sync dot classes when canvas/video URLs arrive asynchronously
         document.addEventListener('bs5c:media-update', function() {
             if (active) syncTextMirror();
+        });
+
+        // Playback resumed according to the player itself. The cycle gate
+        // reads uiStore.mediaInfo.state, which this event is what corrects —
+        // without a retry here the video stays off until the next track.
+        document.addEventListener('bs5c:playback-state', function(e) {
+            if (e.detail && e.detail.playing) tryStartCycle();
         });
 
         // Menu open → pause cycle; menu close → resume

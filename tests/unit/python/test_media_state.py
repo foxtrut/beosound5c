@@ -261,3 +261,36 @@ class TestMediaTrace:
         assert "decision=accept" in lines[0]
         assert "source_id=-" in lines[0]
         assert "update_reason=playback_override" in lines[0]
+
+
+class TestNotePlaying:
+    """The cached payload has to follow the player's progress events.
+
+    A source registers "paused" with the registry and that never becomes a
+    media update, so without this the cache keeps the state its last
+    track_change carried — and every client replays the cache on connect. A
+    UI restarted mid-track came up paused: ❚❚ on the title, dimmed artwork,
+    and no video, because the canvas panel gates its cycle on that state.
+    """
+
+    def test_paused_then_playing_round_trip(self):
+        ms = MediaState()
+        ms.state = {"title": "One More Year", "state": "playing"}
+        ms.note_playing(False)
+        assert ms.state["state"] == "paused"
+        ms.note_playing(True)
+        assert ms.state["state"] == "playing"
+
+    def test_leaves_the_rest_of_the_payload_alone(self):
+        ms = MediaState()
+        ms.state = {"title": "One More Year", "artwork": "data:...",
+                    "state": "playing", "music_video_url": "https://v"}
+        ms.note_playing(False)
+        assert ms.state["title"] == "One More Year"
+        assert ms.state["artwork"] == "data:..."
+        assert ms.state["music_video_url"] == "https://v"
+
+    def test_nothing_cached_is_not_an_error(self):
+        ms = MediaState()
+        ms.note_playing(True)
+        assert ms.state is None

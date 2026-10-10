@@ -81,6 +81,11 @@ const DEFAULT_PLAYING_PRESET = {
                 if (flipper) flipper.classList.remove('flipped');
             }
         }
+        // Track progress bar — anchored by handleMediaUpdate, animated by CSS.
+        // Rendering here also covers view entry: view-manager calls
+        // updateNowPlayingView() on mount, so arriving at AFSPILLER mid-track
+        // draws the bar where it actually is.
+        if (window.PlayingProgress) window.PlayingProgress.render();
     },
     onMount(container) {
         const flipper = container.querySelector('.playing-flipper');
@@ -165,16 +170,54 @@ class MediaManager {
             track_id: keepTrackId ? (this.mediaInfo.track_id || '') : (data.track_id || ''),
             state: data.state || 'unknown',
             position: data.position || '0:00',
-            duration: data.duration || '0:00'
+            duration: data.duration || '0:00',
+            // Explicit millisecond fields when a backend sends them (demo
+            // backend, emulator) — PlayingProgress prefers these over the
+            // formatted strings above.
+            position_ms: data.position_ms,
+            duration_ms: data.duration_ms
         };
 
         this._syncPlaybackStateClasses(prevState, this.mediaInfo);
+
+        // Re-anchor the progress model before anything renders from it.
+        if (window.PlayingProgress) window.PlayingProgress.update(this.mediaInfo);
 
         document.dispatchEvent(new CustomEvent('bs5c:media-update', {
             detail: { data: this.mediaInfo, reason }
         }));
 
         this.updateNowPlayingView();
+    }
+
+    /**
+     * Adopt a playback state the player reported on its own (the `playing`
+     * flag on media_progress).
+     *
+     * Sources that drive the local player register "paused" with the router,
+     * and that registration never becomes a media update — the registry only
+     * broadcasts source_change, and only when the active source changes. So
+     * mediaInfo.state stays "playing" through a pause and the ❚❚ glyph never
+     * appears for Jellyfin, Plex, Tidal, Apple Music, USB or news. The player
+     * knows (it is the one pausing mpv) and now says so.
+     *
+     * Players that already report their own paused media (Sonos, BlueSound,
+     * WiiM, HEOS, Mozart, ASE) and the AirPlay source are unaffected: they
+     * send no progress events, and the state they push wins as before.
+     */
+    applyPlaybackState(playing) {
+        const state = playing ? 'playing' : 'paused';
+        if (this.mediaInfo.state === state) return;
+        const prevState = this.mediaInfo.state;
+        this.mediaInfo = { ...this.mediaInfo, state };
+        this._syncPlaybackStateClasses(prevState, this.mediaInfo);
+        this.updateNowPlayingView();
+        // The canvas/video panel gates its cycle on this state and only
+        // retries on a track change, a video load or the menu closing — so a
+        // correction arriving in between has to say so (canvas-panel.js).
+        document.dispatchEvent(new CustomEvent('bs5c:playback-state', {
+            detail: { playing }
+        }));
     }
 
     /**

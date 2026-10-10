@@ -1509,6 +1509,7 @@ class MediaServer(PlayerBase):
                             name="playback_override")
 
                     self._current_position = position
+                    self._remember_position(track_id, position)
 
                 if consecutive_failures:
                     logger.info("Sonos reachable again after %d failed polls",
@@ -1647,6 +1648,26 @@ class MediaServer(PlayerBase):
         except Exception as e:
             logger.error(f"Error fetching media data: {e}")
             return None
+
+    def _remember_position(self, track_id, position):
+        """Keep the cached payload's position current.
+
+        fetch_media_data() only refreshes the cache when it broadcasts (track
+        change or a detected seek), but the pause/stop handler above reuses
+        that cache verbatim — so without this the state_change push carries
+        the position the track *started* at, and the UI's progress bar jumps
+        backwards on every pause. bluesound/wiim/heos/ase already refresh
+        their cached position on each poll; this is the Sonos equivalent.
+
+        Guarded on the URI so a cache belonging to another track is never
+        stamped with this one's position (radio keeps the previous track's
+        payload — see the state_change branch in the monitor loop).
+        """
+        cached = self._cached_media_data
+        if not cached or not position:
+            return
+        if track_id and cached.get("uri") == track_id:
+            cached["position"] = position
 
     def time_to_seconds(self, time_str):
         """Convert time string (MM:SS or HH:MM:SS) to seconds."""

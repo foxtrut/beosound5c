@@ -1375,6 +1375,11 @@ async def handle_broadcast(request: web.Request) -> web.Response:
         return web.json_response({"error": "invalid json"}, status=400)
     event_type = payload.get("type", "unknown")
     data = payload.get("data", {})
+    # The player reports playing/paused alongside the position for sources
+    # that own their own metadata; the cached media payload has no other way
+    # of hearing about it (see MediaState.note_playing).
+    if event_type == "media_progress" and isinstance(data, dict) and "playing" in data:
+        router_instance.media.note_playing(bool(data["playing"]))
     await router_instance.media.broadcast(event_type, data)
     return web.json_response({"status": "ok"})
 

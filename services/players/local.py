@@ -75,6 +75,7 @@ class LocalPlayer(PlayerBase):
         self._stop_time: float = 0  # monotonic time of last explicit stop
         self._reconcile_task: asyncio.Task | None = None
         self._current_url: str | None = None  # URL mpv was started with
+        self._progress_task: asyncio.Task | None = None
 
     @property
     def _librespot_available(self) -> bool:
@@ -134,6 +135,7 @@ class LocalPlayer(PlayerBase):
                 self._current_playback_state = 'playing'
                 self._current_url = url
                 self._watcher_task = asyncio.create_task(self._watch_process())
+                self._start_progress()
                 logger.info("Playing URL via mpv: %s%s", url,
                             f" (+{len(headers)} auth header)" if headers else "")
                 return True
@@ -438,6 +440,7 @@ class LocalPlayer(PlayerBase):
 
     async def _kill_mpv(self):
         """Terminate any running mpv process."""
+        self._stop_progress()
         if self._watcher_task:
             self._watcher_task.cancel()
             try:
@@ -496,6 +499,108 @@ class LocalPlayer(PlayerBase):
         except Exception as e:
             logger.error("mpv IPC error: %s", e)
             return False
+        finally:
+            s.close()
+
+    # ── Progress reporting ──
+    #
+    # Sources that play through mpv (Jellyfin, Plex, Tidal, Apple Music, USB,
+    # news …) hand over a URL and push their own metadata, and
+    # post_media_update defaults duration and position to 0 — so nothing ever
+    # tells the UI how long the track is. mpv knows exactly, so the player
+    # reports it: a progress event carries the numbers without disturbing the
+    # metadata the source owns.
+    #
+    # The UI extrapolates between events (see web/js/playing-progress.js), so
+    # this only has to land on the moments that move the anchor: the length
+    # becoming known, a pause or resume, and a slow resync for a UI that
+    # reloaded mid-track.
+
+    PROGRESS_POLL = 1.0       # seconds between mpv property reads
+    PROGRESS_RESYNC = 10.0    # seconds between pushes when nothing changed
+
+    def _start_progress(self):
+        self._stop_progress()
+        self._progress_task = self._spawn(self._progress_loop(),
+                                          name="mpv_progress")
+
+    def _stop_progress(self):
+        if self._progress_task:
+            self._progress_task.cancel()
+            self._progress_task = None
+
+    async def _progress_loop(self):
+        """Report mpv's position/duration to the router while it plays."""
+        last_duration = None
+        last_paused = None
+        last_push = 0.0
+        try:
+            while self._process and self._process.poll() is None:
+                await asyncio.sleep(self.PROGRESS_POLL)
+                if self._active_backend != 'mpv':
+                    break
+                duration = await self._mpv_get('duration')
+                position = await self._mpv_get('time-pos')
+                paused = await self._mpv_get('pause')
+                seekable = await self._mpv_get('seekable')
+                if seekable is not True:
+                    # A live stream has no length to be a fraction of, but
+                    # mpv still reports a duration for one: on DR's HLS radio
+                    # it is the sliding window (129s, with the position
+                    # tracking the live edge), which drew a progress bar that
+                    # meant nothing. Seekability is the honest test — a
+                    # Jellyfin track answers True, a live stream False — and
+                    # it stays None until mpv has opened the stream.
+                    continue
+                if not isinstance(duration, (int, float)) or duration <= 0:
+                    continue   # mpv hasn't parsed the length yet
+                if not isinstance(position, (int, float)):
+                    continue
+                now = time.monotonic()
+                changed = (duration != last_duration or bool(paused) != last_paused)
+                if not changed and now - last_push < self.PROGRESS_RESYNC:
+                    continue
+                last_duration, last_paused, last_push = duration, bool(paused), now
+                await self.broadcast_progress(
+                    position_ms=round(position * 1000),
+                    duration_ms=round(duration * 1000),
+                    playing=not paused)
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logger.debug("Progress loop ended: %s", e)
+
+    async def _mpv_get(self, prop: str):
+        """Read one mpv property, or None if it can't be read."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self._mpv_get_sync, prop)
+
+    def _mpv_get_sync(self, prop: str):
+        import socket as sock
+        s = sock.socket(sock.AF_UNIX, sock.SOCK_STREAM)
+        s.settimeout(2)
+        try:
+            s.connect(IPC_SOCKET)
+            s.sendall((json.dumps(
+                {'command': ['get_property', prop], 'request_id': 1}) + '\n').encode())
+            # mpv interleaves unsolicited events with replies — read lines
+            # until the one carrying our request_id turns up.
+            buf = b''
+            while True:
+                chunk = s.recv(4096)
+                if not chunk:
+                    return None
+                buf += chunk
+                while b'\n' in buf:
+                    line, buf = buf.split(b'\n', 1)
+                    if not line.strip():
+                        continue
+                    msg = json.loads(line)
+                    if msg.get('request_id') == 1:
+                        return msg.get('data') if msg.get('error') == 'success' else None
+        except Exception as e:
+            logger.debug("mpv get %s failed: %s", prop, e)
+            return None
         finally:
             s.close()
 

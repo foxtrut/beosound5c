@@ -3,6 +3,7 @@
 
     // ── Configuration ──
     const IDLE_TIMEOUT = 30000;       // 30s inactivity before immersive
+    const LOCAL_START_WINDOW = 5000;  // a start of the owner's own is "theirs" this long
     const ARTWORK_MS = 600;           // transition duration for idle enter/exit
     const OVERLAY_ANGLE_START = 200;  // laser angle where immersive starts
     const OVERLAY_ANGLE_END = 210;    // laser angle where immersive is fully active
@@ -23,11 +24,18 @@
     // flashes the menu before immersive mode kicks in.
     let eagerEntryArmed = false;
     let eagerEntryArmedTimer = null;
-    // Set by hardware-input when a physical GO on the PLAYING view is about
-    // to resume playback. The next not-playing → playing edge consumes it
-    // and stays in the menu: only starts from *elsewhere* (Sonos/Spotify
-    // app, BeoRemote, HA) pull the screen into immersive.
+    // Set by hardware-input when the owner starts something from this
+    // device's own buttons — a GO on the PLAYING view, or a GO anywhere
+    // they are picking a track. While it is set, nothing pulls the screen
+    // into immersive: they are looking at the menu they just used, and the
+    // PLAYING view is what should meet them. Only starts from *elsewhere*
+    // (Sonos/Spotify app, BeoRemote, HA) go straight to immersive.
+    //
+    // It expires rather than being consumed: the playback-started edge and
+    // the router's navigate arrive in either order, and consuming it on the
+    // first would let the second enter immersive anyway.
     let localPlayPending = false;
+    let localPlayTimer = null;
 
     function isFullyImmersive() { return progress >= 1; }
     function isPartiallyImmersive() { return progress > 0; }
@@ -57,6 +65,9 @@
                 '<div class="immersive-info-artist"></div>' +
                 '<div class="immersive-info-album"></div>';
             container.appendChild(el);
+            // No progress bar here on purpose: this view exists to show the
+            // artwork at full size, and the owner wants nothing competing
+            // with it. The bar lives in the PLAYING info box only.
         }
         return el;
     }
@@ -361,7 +372,8 @@
                         syncOverlayText(false);
                         applyProgress(progress);
                     }, 100);
-                } else if (eagerEntryAllowed && (eagerEntryArmed || (!wasPlaying && isPlaying()))) {
+                } else if (eagerEntryAllowed && !localPlayPending
+                           && (eagerEntryArmed || (!wasPlaying && isPlaying()))) {
                     // Either (a) a remote source-start just armed us, or
                     // (b) we're waking to an already-playing view. Go
                     // straight to immersive without waiting for media.
@@ -399,22 +411,24 @@
         });
 
         // 6. Playback started (not-playing → playing edge, from media-manager).
-        //    A start from somewhere other than this device's own buttons goes
-        //    straight to immersive: navigate to PLAYING if we're elsewhere
-        //    (the view-change path above enters immersive since isPlaying()
-        //    is already true), or enter in place if we're already there —
-        //    that's the case the backend's "navigate" wake can't cover, since
-        //    navigating to the current route produces no view change.
+        //    This is also what carries the screen to PLAYING at all: apart
+        //    from CD, no source asks the router to navigate, so a track
+        //    picked in the JELLYFIN menu reaches the PLAYING view through
+        //    here. That navigation happens either way — what a start of the
+        //    owner's own suppresses is immersive, not the trip to PLAYING.
+        //    A start from somewhere else (Sonos/Spotify app, BeoRemote, HA)
+        //    goes straight to immersive: the view-change path above enters
+        //    it since isPlaying() is already true, or we enter in place when
+        //    we are already on PLAYING — the case the backend's "navigate"
+        //    wake can't cover, since navigating to the current route
+        //    produces no view change.
         document.addEventListener('bs5c:playback-started', () => {
-            if (localPlayPending) {
-                localPlayPending = false;
-                return;
-            }
             if (!eagerEntryAllowed) return;
             if (uiStore.currentRoute !== 'menu/playing') {
                 uiStore.navigateToView('menu/playing');
                 return;
             }
+            if (localPlayPending) return;
             if (isFullyImmersive() || isTracking) return;
             ensureOverlay();
             uiStore.setMenuVisible(false);
@@ -473,11 +487,22 @@
         }, 3000);
     }
 
+    /** The owner just started something from this device itself — whatever
+     *  navigation follows should land on the plain PLAYING view. */
+    function noteLocalStart() {
+        localPlayPending = true;
+        clearTimeout(localPlayTimer);
+        localPlayTimer = setTimeout(() => {
+            localPlayPending = false;
+            localPlayTimer = null;
+        }, LOCAL_START_WINDOW);
+    }
+
     /** A physical GO on the PLAYING view is about to resume playback —
      *  the resulting playback-started edge must not enter immersive. Only
      *  latches while not playing (a GO that pauses is not a start). */
     function noteLocalPlayIntent() {
-        if (!isPlaying()) localPlayPending = true;
+        if (!isPlaying()) noteLocalStart();
     }
 
     // Expose for debugging / manual toggle
@@ -486,6 +511,7 @@
         exit: animatedExit,
         armEagerEntry,
         noteLocalPlayIntent,
+        noteLocalStart,
         get active() { return isPartiallyImmersive(); },
         get progress() { return progress; },
         syncText: () => syncOverlayText(false)

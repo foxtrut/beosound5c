@@ -227,6 +227,25 @@ class MediaState:
         self._state = payload
         asyncio.ensure_future(self.push_media(payload, reason))
 
+    def note_playing(self, playing: bool) -> None:
+        """Keep the cached payload's playing/paused in step with the player.
+
+        A source registers "paused" with the registry, and that never becomes
+        a media update — so the cached payload keeps whatever state its last
+        track_change carried. Every client replays that cache on connect, so
+        a UI restarted mid-track came up believing playback was paused: ❚❚ on
+        the title, artwork dimmed, and the video panel refusing to start
+        (its cycle gate reads the media state).
+
+        Live clients learn the truth from the media_progress event itself;
+        this is only so the next one to connect does too.
+        """
+        if not self._state:
+            return
+        state = "playing" if playing else "paused"
+        if self._state.get("state") != state:
+            self._state["state"] = state
+
     # ── WebSocket endpoint ──
 
     async def handle_ws(self, request: web.Request,

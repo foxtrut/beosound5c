@@ -386,6 +386,13 @@ function handleButtonEvent(uiStore, data) {
     // not treat the resulting playback start as an external one.
     if (button === 'go' && page === 'menu/playing') {
         window.ImmersiveMode?.noteLocalPlayIntent?.();
+    } else if (button === 'go') {
+        // A GO anywhere else is the owner choosing a track in a source menu
+        // (JELLYFIN, SPOTIFY, USB …). The backend navigates to PLAYING once
+        // playback starts, and that navigation should land on the PLAYING
+        // view — immersive is for sitting back, not for the moment you pick
+        // something.
+        window.ImmersiveMode?.noteLocalStart?.();
     }
 
     // Global overlay intercept — camera overlay captures all buttons when active

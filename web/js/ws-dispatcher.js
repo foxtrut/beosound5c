@@ -133,6 +133,23 @@ function processWebSocketEvent(message) {
             }
             break;
 
+        case 'media_progress':
+            // Position/duration only — sent by a player whose source owns the
+            // metadata (mpv-backed sources never report a track length of
+            // their own). Re-anchors the progress bar without touching title,
+            // artist or artwork.
+            if (window.PlayingProgress) {
+                window.PlayingProgress.applyProgress(data);
+                window.PlayingProgress.render();
+            }
+            // The player is also the only one who knows this playback is
+            // paused — the source's "paused" registration never reaches the
+            // UI as media (see MediaManager.applyPlaybackState).
+            if ('playing' in data && uiStore.media?.applyPlaybackState) {
+                uiStore.media.applyPlaybackState(data.playing);
+            }
+            break;
+
         case 'navigate':
             handleExternalNavigation(uiStore, data);
             break;
