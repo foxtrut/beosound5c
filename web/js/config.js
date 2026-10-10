@@ -46,6 +46,9 @@ const AppConfig = {
     // News source (Guardian)
     newsServiceUrl: 'http://localhost:8776',
 
+    // Weather source (DMI)
+    weatherServiceUrl: 'http://localhost:8790',
+
     // Radio source (Radio Browser)
     radioServiceUrl: 'http://localhost:8779',
 

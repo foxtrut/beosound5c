@@ -13,4 +13,5 @@ Current sources:
   plex/       — Plex music browsing and playback
   jellyfin/   — Jellyfin music browsing and playback
   news.py     — RSS/TTS news playback via local mpv
+  weather.py  — DMI forecast display (no playback)
 """

@@ -83,6 +83,7 @@ SYS_PATH_INSERT_BASELINE: dict[str, int] = {
     "players/ase.py": 1,
     "lib/spotify_canvas.py": 1,
     "sources/news.py": 2,
+    "sources/weather.py": 2,
     "sources/cd.py": 1,
     "sources/apple_music/fetch.py": 1,
     "sources/apple_music/service.py": 2,
