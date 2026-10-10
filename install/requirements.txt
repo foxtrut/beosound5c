@@ -39,6 +39,11 @@ edge-tts>=6.1.0
 # Spotify Canvas protobuf API
 protobuf>=6.33.0
 
+# Recurring-event expansion for the calendar source (RRULE/EXDATE).
+# dateutil.rrule is the reference implementation — hand-rolling BYDAY and
+# monthly/DST edge cases is where calendar readers quietly go wrong.
+python-dateutil>=2.8.2
+
 # CD drive monitoring (udev events)
 pyudev>=0.24.0
 

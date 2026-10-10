@@ -385,6 +385,9 @@ const CFG_SOURCE_DEFS = [
     { key: 'NEWS', label: 'News', fields: [
         { fid: 'guardian_api_key', label: 'Guardian API key', path: ['news','guardian_api_key'], placeholder: 'From theguardian.com/developer' },
     ]},
+    { key: 'CALENDAR', label: 'Calendar', fields: [
+        { fid: 'url', label: 'iCal URL', path: ['calendar','url'], placeholder: 'https://calendar.google.com/calendar/ical/.../basic.ics', hint: 'Google Calendar &rarr; Settings for my calendars &rarr; Integrate calendar &rarr; &ldquo;Secret address in iCal format&rdquo;. Read-only. Extra calendars and <code>days_ahead</code> go in <code>/etc/beosound5c/config.json</code> &rarr; <code>"calendar"</code>.' },
+    ]},
     { key: 'SCENES', label: 'Scenes', hint: 'Edit scene names, icons and HA scripts in <code>/etc/beosound5c/config.json</code> → <code>"scenes"</code> array.' },
     { key: 'SECURITY', label: 'Security Camera', isUrl: true, fields: [
         { fid: 'url', label: 'Camera URL', path: ['_security_url'], placeholder: 'http://homeassistant.local:8123/cameras' },
@@ -427,7 +430,7 @@ const BALANCE_EXCLUDED_TYPES = ['sonos', 'bluesound', 'heos', 'wiim', 'mozart', 
 const CFG_SOURCE_VIEWS = {
     'PLAYING':'playing','SPEAKERS':'join','JOIN':'join','SPOTIFY':'spotify','TIDAL':'tidal',
     'APPLE MUSIC':'apple_music','PLEX':'plex','JELLYFIN':'jellyfin','RADIO':'radio','CD':'cd',
-    'USB':'usb','NEWS':'news','SCENES':'scenes','SYSTEM':'system','SHOWING':'showing',
+    'USB':'usb','NEWS':'news','CALENDAR':'calendar','SCENES':'scenes','SYSTEM':'system','SHOWING':'showing',
 };
 
 let _cfg = null;
