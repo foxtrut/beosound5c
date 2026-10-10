@@ -86,6 +86,9 @@ class SourceBase:
         self._runner: web.AppRunner | None = None
         self._last_media: dict | None = None  # cached by post_media_update()
         self._registered_state: str | None = None  # last state sent to register()
+        # Media post the router dropped because this source was not yet
+        # active — replayed by register() once activation lands.
+        self._deferred_media: tuple | None = None
         self._action_ts: float = 0.0  # monotonic timestamp from router activation
         self._background_tasks = BackgroundTaskSet(
             log, label=f"{self.id or 'source'}")
@@ -129,6 +132,7 @@ class SourceBase:
                     ROUTER_SOURCE_URL, json=payload, timeout=5
                 ) as resp:
                     log.info("Router source -> %s (HTTP %d)", state, resp.status)
+                    await self._replay_deferred_media(state)
                     return
             except Exception as e:
                 if attempt < _retries - 1:
@@ -228,8 +232,56 @@ class SourceBase:
                 self.ROUTER_MEDIA_URL, json=payload, timeout=5,
             ) as resp:
                 log.info("Router media -> %s (HTTP %d)", reason, resp.status)
+                await self._defer_if_inactive(resp, payload, reason)
         except Exception as e:
             log.warning("Failed to post media update: %s", e)
+
+    # Sources that pre-broadcast metadata before telling the router they
+    # are playing (the optimistic "paint the PLAYING view now, play after"
+    # order) get that first post dropped as ``inactive_source`` whenever the
+    # source wasn't already active — the very first track of a session. The
+    # metadata is then simply gone: polling only re-posts on track change,
+    # so the PLAYING view stays empty for the whole track. Hold such a post
+    # and replay it from register(). The gap is milliseconds in practice;
+    # the TTL only guards against replaying metadata that long since stopped
+    # being true (e.g. a play that failed and never registered).
+    _DEFERRED_MEDIA_TTL = 15.0
+
+    async def _defer_if_inactive(self, resp, payload, reason):
+        """Hold a media post the router dropped for lack of an active source."""
+        try:
+            body = await resp.json()
+        except Exception:
+            return
+        if not isinstance(body, dict) or not body.get("dropped"):
+            return
+        if body.get("reason") != "inactive_source":
+            return
+        log.info("Media post dropped (%s not active yet) — replaying on activation",
+                 self.id)
+        self._deferred_media = (dict(payload), reason,
+                                time.monotonic() + self._DEFERRED_MEDIA_TTL)
+
+    async def _replay_deferred_media(self, state):
+        """Re-post the held media update now that the router activated us.
+
+        Any register() clears the hold: a state that isn't playing/paused
+        means the metadata never became true.
+        """
+        deferred, self._deferred_media = self._deferred_media, None
+        if not deferred or state not in ("playing", "paused"):
+            return
+        payload, reason, deadline = deferred
+        if time.monotonic() > deadline:
+            log.info("Deferred media post expired — not replaying")
+            return
+        try:
+            async with self._http_session.post(
+                self.ROUTER_MEDIA_URL, json=payload, timeout=5,
+            ) as resp:
+                log.info("Router media replay -> %s (HTTP %d)", reason, resp.status)
+        except Exception as e:
+            log.warning("Failed to replay media update: %s", e)
 
     async def _resync_media(self):
         """Re-post current metadata to the router if source is playing/paused.

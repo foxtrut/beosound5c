@@ -295,3 +295,81 @@ class TestResyncMedia:
         }
         _run(src._resync_media())
         assert src._resync_posts[0]["canvas_url"] == "https://canvas.example/abc.mp4"
+
+
+# ── deferred replay of media dropped as inactive_source ──────────────
+
+
+class _DropFirstMediaSession(_RecordingSession):
+    """Router that drops the first /router/media post as inactive_source.
+
+    That is the real behaviour when a source pre-broadcasts metadata
+    before registering as playing: the router has no active source yet,
+    so the optimistic post is thrown away.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.media_posts: list = []
+
+    def post(self, url, json=None, timeout=None):
+        resp = super().post(url, json=json, timeout=timeout)
+        if "/router/media" in url:
+            self.media_posts.append(json)
+            if len(self.media_posts) == 1:
+                return _FakeResponse(200, {"status": "ok", "dropped": True,
+                                           "reason": "inactive_source"})
+        return resp
+
+
+class TestDeferredMediaReplay:
+    def test_dropped_media_is_replayed_on_activation(self):
+        """The first track of a session must still reach the PLAYING view."""
+        src = _FakeSource()
+        sess = _DropFirstMediaSession()
+        src._http_session = sess
+
+        _run(src.post_media_update(title="One More Year", artist="Tame Impala"))
+        assert len(sess.media_posts) == 1          # dropped by the router
+        _run(src.register("playing", auto_power=True))
+
+        assert len(sess.media_posts) == 2
+        assert sess.media_posts[1]["title"] == "One More Year"
+        assert sess.media_posts[1]["state"] == "playing"
+        assert src._deferred_media is None         # hold released
+
+    def test_accepted_media_is_not_replayed(self):
+        src = _FakeSource()
+        sess = _RecordingSession()                 # accepts everything
+        src._http_session = sess
+
+        _run(src.post_media_update(title="Borderline"))
+        _run(src.register("playing"))
+
+        media_posts = [c for c in sess.post_calls if "/router/media" in c["url"]]
+        assert len(media_posts) == 1
+
+    def test_non_playing_register_discards_the_hold(self):
+        """Registering anything but playing/paused means the metadata never
+        became true (e.g. the play command failed) — drop it."""
+        src = _FakeSource()
+        sess = _DropFirstMediaSession()
+        src._http_session = sess
+
+        _run(src.post_media_update(title="Posthumous Forgiveness"))
+        _run(src.register("available"))
+
+        assert len(sess.media_posts) == 1
+        assert src._deferred_media is None
+
+    def test_expired_hold_is_not_replayed(self):
+        src = _FakeSource()
+        sess = _DropFirstMediaSession()
+        src._http_session = sess
+
+        _run(src.post_media_update(title="Breathe Deeper"))
+        payload, reason, _deadline = src._deferred_media
+        src._deferred_media = (payload, reason, 0.0)   # deadline in the past
+        _run(src.register("playing"))
+
+        assert len(sess.media_posts) == 1
