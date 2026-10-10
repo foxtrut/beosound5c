@@ -99,7 +99,7 @@ class BluesoundPlayer(PlayerBase):
     # ── PlayerBase abstract methods ──
 
     async def play(self, uri=None, url=None, track_uri=None, meta=None,
-                   radio=False, track_uris=None) -> bool:
+                   radio=False, track_uris=None, headers=None) -> bool:
         try:
             if uri:
                 logger.warning("BluOS does not support Spotify URIs — ignoring uri=%s", uri)

@@ -28,7 +28,7 @@ from aiohttp import web
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 # Sibling imports (this directory)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from jellyfin_api import normalise_url
+from jellyfin_api import normalise_url, with_api_key
 from jellyfin_auth import JellyfinAuth
 from jellyfin_tokens import delete_tokens
 
@@ -148,6 +148,8 @@ class JellyfinService(DigitPlaylistMixin, SourceBase):
                 log.info("Player service available - using player API")
             else:
                 log.warning("No player service available")
+
+            await self._warn_if_player_cannot_authenticate()
         else:
             log.info("No Jellyfin credentials - waiting for setup via /setup")
 
@@ -162,6 +164,26 @@ class JellyfinService(DigitPlaylistMixin, SourceBase):
                 self._delayed_refresh(delay=10))
             self._nightly_task = asyncio.create_task(
                 self._nightly_refresh_loop())
+
+    async def _warn_if_player_cannot_authenticate(self):
+        """Say so when the configured player cannot reach the streams.
+
+        The local player sends the Authorization header and is always
+        fine. A networked speaker only has ``?api_key=``, which Jellyfin
+        12.1 rejects — nothing in this source can fix that, so the least
+        we owe the user is a log line naming the cause instead of a
+        playlist that dies three seconds into every track.
+        """
+        if self.player == "local" or not self.auth.is_configured:
+            return
+        loop = asyncio.get_running_loop()
+        if await loop.run_in_executor(None, self.auth.client.query_auth_works):
+            return
+        log.warning(
+            "This Jellyfin server (%s) no longer accepts api_key in the URL, "
+            "and a networked player cannot send the Authorization header it "
+            "wants instead. Jellyfin playback needs player.type = local.",
+            self.auth.server_name or self.auth.server_url)
 
     async def on_stop(self):
         for task in (self._poll_task, self._refresh_task, self._nightly_task):
@@ -440,7 +462,8 @@ class JellyfinService(DigitPlaylistMixin, SourceBase):
                  self._current_index + 1, len(tracks),
                  track.get('artist', '?'), track.get('name', '?'))
 
-        ok = await self.player_play(url=url)
+        play_url, headers = self._playable(url)
+        ok = await self.player_play(url=play_url, headers=headers)
         if ok:
             self.state = "playing"
             self.now_playing = {
@@ -450,7 +473,7 @@ class JellyfinService(DigitPlaylistMixin, SourceBase):
                 'total': len(tracks),
                 'index': self._current_index,
             }
-            self._expected_stream_url = url
+            self._expected_stream_url = play_url
             self._track_started_at = time.monotonic()
             self._pending_stop_polls = 0
             await self.register("playing", auto_power=True)
@@ -459,6 +482,22 @@ class JellyfinService(DigitPlaylistMixin, SourceBase):
             log.error("Player failed to start '%s' — reverting optimistic state",
                       track.get('name', '?'))
             await self._revert_failed_play(prev_np)
+
+    def _playable(self, url):
+        """Attach credentials the active player can actually use.
+
+        Stream URLs are cached without a token. The local player runs
+        mpv, which can send the ``Authorization`` header Jellyfin 12.1
+        requires; a networked speaker fetches the URL itself and has
+        nowhere to put a header, so the deprecated ``api_key`` query
+        parameter is all it can be given. Returns ``(url, headers)``.
+        """
+        client = self.auth.client
+        if not url or client is None:
+            return url, None
+        if self.player == "local":
+            return url, client.stream_headers()
+        return with_api_key(url, client.token), None
 
     async def _revert_failed_play(self, prev_np):
         """A play command failed — the player still plays whatever it played
@@ -509,12 +548,13 @@ class JellyfinService(DigitPlaylistMixin, SourceBase):
     async def _play_track_url(self, url):
         """Play a specific track by its stream URL (standalone, no playlist context)."""
         log.info("Play track URL %s", url)
-        ok = await self.player_play(url=url)
+        play_url, headers = self._playable(url)
+        ok = await self.player_play(url=play_url, headers=headers)
         if ok:
             self.state = "playing"
             self._current_playlist = None
             self._current_index = 0
-            self._expected_stream_url = url
+            self._expected_stream_url = play_url
             self._track_started_at = time.monotonic()
             self._pending_stop_polls = 0
             await self.register("playing", auto_power=True)
@@ -994,6 +1034,7 @@ class JellyfinService(DigitPlaylistMixin, SourceBase):
 
         log.info("Jellyfin login successful (user: %s, server: %s)",
                  self.auth.user_name, self.auth.server_name)
+        await self._warn_if_player_cannot_authenticate()
 
     @staticmethod
     async def _json_body(request):

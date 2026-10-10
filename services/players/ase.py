@@ -205,7 +205,7 @@ class AsePlayer(PlayerBase):
     # ── PlayerBase abstract methods ──
 
     async def play(self, uri=None, url=None, track_uri=None, meta=None,
-                   radio=False, track_uris=None) -> bool:
+                   radio=False, track_uris=None, headers=None) -> bool:
         # ASE has no generic "play arbitrary URL" like Mozart; playback is
         # driven by the device's own sources. Best-effort resume.
         if uri or url:

@@ -24,7 +24,7 @@ class _GroupPlayer(PlayerBase):
     port = 8766
 
     async def play(self, uri=None, url=None, track_uri=None, meta=None,
-                   radio=False, track_uris=None):
+                   radio=False, track_uris=None, headers=None):
         return True
 
     async def pause(self):

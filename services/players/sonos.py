@@ -345,7 +345,7 @@ class MediaServer(PlayerBase):
             return ''
 
     async def play(self, uri=None, url=None, track_uri=None, meta=None,
-                   radio=False, track_uris=None) -> bool:
+                   radio=False, track_uris=None, headers=None) -> bool:
         """Play content on the Sonos speaker.
 
         uri: Spotify share link (https://open.spotify.com/...) or spotify: URI

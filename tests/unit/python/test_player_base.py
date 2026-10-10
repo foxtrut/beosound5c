@@ -109,10 +109,11 @@ class _FakePlayer(PlayerBase):
         self.stop_calls = 0
 
     async def play(self, uri=None, url=None, track_uri=None, meta=None,
-                   radio=False, track_uris=None):
+                   radio=False, track_uris=None, headers=None):
         self.play_calls.append({
             "uri": uri, "url": url, "track_uri": track_uri,
             "meta": meta, "radio": radio, "track_uris": track_uris,
+            "headers": headers,
         })
         return True
 

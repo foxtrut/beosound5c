@@ -10,7 +10,10 @@ split Plex's ``plexapi`` usage has.
 Version compatibility: Jellyfin moved user-scoped library queries from
 ``/Users/{userId}/Items`` to ``/Items?userId=`` around 10.9 and removed
 the old path later, so :meth:`JellyfinClient.user_items` tries the new
-shape first and falls back on 404.
+shape first and falls back on 404.  12.1 went further and dropped
+``?api_key=`` authentication altogether — every request, stream URLs
+included, now has to carry the ``Authorization: MediaBrowser ...``
+header.
 """
 
 from __future__ import annotations
@@ -93,6 +96,7 @@ class JellyfinClient:
         self.token = token
         self.user_id = user_id
         self.timeout = timeout
+        self._query_auth = None  # cached answer of query_auth_works()
         self._session = requests.Session()
         self._session.verify = False
 
@@ -251,13 +255,22 @@ class JellyfinClient:
 
         ``/universal`` lets the server decide: direct-play when the file
         is already in a container the player understands, transcode to
-        MP3 when it isn't.  The token rides along as ``api_key`` because
-        players fetch this URL themselves and can't set headers.
+        MP3 when it isn't.
+
+        The URL carries no credentials.  Jellyfin 12.1 dropped the
+        ``api_key`` query parameter and answers 401 to a URL that uses
+        it, so the token has to travel in the ``Authorization`` header —
+        see :func:`auth_header`, and ``--http-header-fields-append`` in
+        the local player.  Keeping the URL clean also keeps the token
+        out of the cached playlist JSON the web UI is served.
+
+        A player that fetches the URL itself (Sonos, BlueSound, HEOS)
+        cannot set headers; :func:`with_api_key` is the only fallback
+        there, and it only works on servers older than 12.1.
         """
         params = {
             "UserId": self.user_id or "",
             "DeviceId": self.device_id,
-            "api_key": self.token or "",
             "MaxStreamingBitrate": MAX_STREAMING_BITRATE,
             "Container": DIRECT_PLAY_CONTAINERS,
             "TranscodingContainer": TRANSCODE_CONTAINER,
@@ -266,6 +279,34 @@ class JellyfinClient:
         }
         query = urllib.parse.urlencode(params)
         return f"{self.base_url}/Audio/{item_id}/universal?{query}"
+
+    def stream_headers(self):
+        """Headers a player must send with :meth:`stream_url`."""
+        return {"Authorization": auth_header(self.token, self.device_id)}
+
+    def query_auth_works(self):
+        """Whether this server still accepts ``?api_key=`` authentication.
+
+        Probed once and remembered: the answer is a property of the
+        server version, and the only caller is the warning for players
+        that cannot send headers.  The probe deliberately goes out
+        *without* the ``Authorization`` header — with it, every server
+        answers 200 and the question goes unasked.
+        """
+        if self._query_auth is None:
+            try:
+                resp = self._session.get(
+                    f"{self.base_url}/System/Info",
+                    params={"api_key": self.token or ""},
+                    headers={"Accept": "application/json"},
+                    timeout=self.timeout)
+                self._query_auth = resp.status_code == 200
+            except Exception:
+                # Unreachable server tells us nothing — stay undecided so
+                # the next call probes again instead of caching a guess,
+                # and assume the permissive answer meanwhile.
+                return True
+        return self._query_auth
 
     def image_url(self, item, max_height=500):
         """Primary artwork URL for an item, or None when it has none.
@@ -289,6 +330,20 @@ class JellyfinClient:
         query = urllib.parse.urlencode(
             {"maxHeight": max_height, "tag": primary})
         return f"{self.base_url}/Items/{item_id}/Images/Primary?{query}"
+
+
+def with_api_key(url, token):
+    """Append the deprecated ``api_key`` parameter to a stream URL.
+
+    The last resort for players that fetch the URL themselves and have
+    nowhere to put a header (Sonos, BlueSound, HEOS).  Jellyfin removed
+    query-parameter auth in 12.1, so this only helps on older servers —
+    :meth:`JellyfinClient.query_auth_works` says which kind this is.
+    """
+    if not token or not url:
+        return url
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}api_key={urllib.parse.quote(token, safe='')}"
 
 
 def track_artist(item):

@@ -115,7 +115,7 @@ class WiimPlayer(PlayerBase):
     # ── PlayerBase abstract methods ──
 
     async def play(self, uri=None, url=None, track_uri=None, meta=None,
-                   radio=False, track_uris=None) -> bool:
+                   radio=False, track_uris=None, headers=None) -> bool:
         if uri:
             logger.warning("LinkPlay does not support Spotify URIs — ignoring uri=%s", uri)
         if url:
