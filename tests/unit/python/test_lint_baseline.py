@@ -95,6 +95,7 @@ SYS_PATH_INSERT_BASELINE: dict[str, int] = {
     "sources/airplay/service.py": 1,
     "sources/todo/service.py": 2,
     "sources/contacts/service.py": 2,
+    "sources/dashboard.py": 1,
     "sources/spotify/fetch.py": 2,
     "sources/spotify/service.py": 2,
     "sources/spotify/spotify_auth.py": 1,

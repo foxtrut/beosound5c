@@ -57,7 +57,7 @@ def test_demo_mode_activates_off_device():
     "jellyfin_playlists.json", "dr_news_articles.json",
     "radio_browse.json", "radio_favourites.json",
     "news_articles.json", "weather_forecast.json", "calendar_events.json",
-    "usb_browse.json", "todo_items.json", "contacts.json",
+    "usb_browse.json", "todo_items.json", "contacts.json", "dashboard.json",
 ])
 def test_demo_file_parses(name):
     data = json.loads((DEMO_JSON / name).read_text())

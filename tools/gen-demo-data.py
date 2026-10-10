@@ -310,6 +310,30 @@ def build() -> dict[str, object]:
         ], start=1)
     ]}
 
+    # Dashboard — the /api/dashboard envelope, mid-track on a Pi 4.
+    files["dashboard.json"] = {
+        "device": "BeoSound 5c", "hostname": "beosound5c", "ip": "192.168.1.42",
+        "time": 0, "uptime_s": 3 * 86400 + 5 * 3600 + 17 * 60,
+        "load": [0.31, 0.27, 0.22], "memory": {"total_mb": 3794, "used_pct": 38},
+        "cpu_temp_c": 48.2, "disk": {"total_gb": 29.1, "free_gb": 18.4, "used_pct": 37},
+        "volume": 32, "output": "BeoLab 5",
+        "playing": {"state": "playing", "title": "Teardrop", "artist": "Massive Attack",
+                    "album": "Mezzanine", "source": "Spotify"},
+        # An October Saturday in DK1 from stromligning.dk: cheap night and
+        # midday, the evening peak; tomorrow still the forecast. The emulator
+        # relabels the dates as today and tomorrow (demo-backend.js).
+        "electricity": {"area": "DK1", "supplier": "Dinel C", "days": [
+            {"date": "2026-10-10", "hours": [
+                {"hour": h, "price": p, "forecast": False} for h, p in enumerate([
+                    0.36, 0.36, 0.36, 0.37, 0.38, 0.36, 0.59, 0.75, 0.86, 0.77, 0.58, 0.44,
+                    0.39, 0.38, 0.40, 0.40, 0.51, 1.69, 2.13, 2.40, 2.19, 1.56, 1.57, 1.46])]},
+            {"date": "2026-10-11", "hours": [
+                {"hour": h, "price": p, "forecast": True} for h, p in enumerate([
+                    1.12, 1.02, 0.96, 0.91, 0.87, 0.90, 1.10, 1.19, 1.22, 1.10, 0.96, 0.82,
+                    0.72, 0.58, 0.61, 0.76, 1.06, 1.91, 2.44, 2.71, 2.55, 1.87, 1.80, 1.66])]},
+        ]},
+    }
+
     files["config.json"] = {
         "device": "BeoSound 5c",
         "setup_complete": True,

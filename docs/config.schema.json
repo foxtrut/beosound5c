@@ -383,6 +383,23 @@
       "additionalProperties": false
     },
 
+    "dashboard": {
+      "type": "object",
+      "description": "DASHBOARD page (OVERBLIK in Danish). Electricity prices come from stromligning.dk's public API, all-in per kWh for one net company; without a net company the page leaves them out.",
+      "properties": {
+        "electricity_supplier": {
+          "type": "string",
+          "description": "The net company's id on stromligning.dk — the netselskab= value in its links, e.g. 'dinel_c'."
+        },
+        "electricity_area": {
+          "type": "string",
+          "enum": ["DK1", "DK2", ""],
+          "description": "Price area: DK1 (west of the Great Belt) or DK2 (east). Default DK1."
+        }
+      },
+      "additionalProperties": false
+    },
+
     "masterlink": {
       "type": "object",
       "description": "B&O Master Link bus role + IR filter. Read by services/masterlink.py at startup.",

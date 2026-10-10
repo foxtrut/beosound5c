@@ -1,0 +1,287 @@
+{
+ "device": "BeoSound 5c",
+ "hostname": "beosound5c",
+ "ip": "192.168.1.42",
+ "time": 0,
+ "uptime_s": 278220,
+ "load": [
+  0.31,
+  0.27,
+  0.22
+ ],
+ "memory": {
+  "total_mb": 3794,
+  "used_pct": 38
+ },
+ "cpu_temp_c": 48.2,
+ "disk": {
+  "total_gb": 29.1,
+  "free_gb": 18.4,
+  "used_pct": 37
+ },
+ "volume": 32,
+ "output": "BeoLab 5",
+ "playing": {
+  "state": "playing",
+  "title": "Teardrop",
+  "artist": "Massive Attack",
+  "album": "Mezzanine",
+  "source": "Spotify"
+ },
+ "electricity": {
+  "area": "DK1",
+  "supplier": "Dinel C",
+  "days": [
+   {
+    "date": "2026-10-10",
+    "hours": [
+     {
+      "hour": 0,
+      "price": 0.36,
+      "forecast": false
+     },
+     {
+      "hour": 1,
+      "price": 0.36,
+      "forecast": false
+     },
+     {
+      "hour": 2,
+      "price": 0.36,
+      "forecast": false
+     },
+     {
+      "hour": 3,
+      "price": 0.37,
+      "forecast": false
+     },
+     {
+      "hour": 4,
+      "price": 0.38,
+      "forecast": false
+     },
+     {
+      "hour": 5,
+      "price": 0.36,
+      "forecast": false
+     },
+     {
+      "hour": 6,
+      "price": 0.59,
+      "forecast": false
+     },
+     {
+      "hour": 7,
+      "price": 0.75,
+      "forecast": false
+     },
+     {
+      "hour": 8,
+      "price": 0.86,
+      "forecast": false
+     },
+     {
+      "hour": 9,
+      "price": 0.77,
+      "forecast": false
+     },
+     {
+      "hour": 10,
+      "price": 0.58,
+      "forecast": false
+     },
+     {
+      "hour": 11,
+      "price": 0.44,
+      "forecast": false
+     },
+     {
+      "hour": 12,
+      "price": 0.39,
+      "forecast": false
+     },
+     {
+      "hour": 13,
+      "price": 0.38,
+      "forecast": false
+     },
+     {
+      "hour": 14,
+      "price": 0.4,
+      "forecast": false
+     },
+     {
+      "hour": 15,
+      "price": 0.4,
+      "forecast": false
+     },
+     {
+      "hour": 16,
+      "price": 0.51,
+      "forecast": false
+     },
+     {
+      "hour": 17,
+      "price": 1.69,
+      "forecast": false
+     },
+     {
+      "hour": 18,
+      "price": 2.13,
+      "forecast": false
+     },
+     {
+      "hour": 19,
+      "price": 2.4,
+      "forecast": false
+     },
+     {
+      "hour": 20,
+      "price": 2.19,
+      "forecast": false
+     },
+     {
+      "hour": 21,
+      "price": 1.56,
+      "forecast": false
+     },
+     {
+      "hour": 22,
+      "price": 1.57,
+      "forecast": false
+     },
+     {
+      "hour": 23,
+      "price": 1.46,
+      "forecast": false
+     }
+    ]
+   },
+   {
+    "date": "2026-10-11",
+    "hours": [
+     {
+      "hour": 0,
+      "price": 1.12,
+      "forecast": true
+     },
+     {
+      "hour": 1,
+      "price": 1.02,
+      "forecast": true
+     },
+     {
+      "hour": 2,
+      "price": 0.96,
+      "forecast": true
+     },
+     {
+      "hour": 3,
+      "price": 0.91,
+      "forecast": true
+     },
+     {
+      "hour": 4,
+      "price": 0.87,
+      "forecast": true
+     },
+     {
+      "hour": 5,
+      "price": 0.9,
+      "forecast": true
+     },
+     {
+      "hour": 6,
+      "price": 1.1,
+      "forecast": true
+     },
+     {
+      "hour": 7,
+      "price": 1.19,
+      "forecast": true
+     },
+     {
+      "hour": 8,
+      "price": 1.22,
+      "forecast": true
+     },
+     {
+      "hour": 9,
+      "price": 1.1,
+      "forecast": true
+     },
+     {
+      "hour": 10,
+      "price": 0.96,
+      "forecast": true
+     },
+     {
+      "hour": 11,
+      "price": 0.82,
+      "forecast": true
+     },
+     {
+      "hour": 12,
+      "price": 0.72,
+      "forecast": true
+     },
+     {
+      "hour": 13,
+      "price": 0.58,
+      "forecast": true
+     },
+     {
+      "hour": 14,
+      "price": 0.61,
+      "forecast": true
+     },
+     {
+      "hour": 15,
+      "price": 0.76,
+      "forecast": true
+     },
+     {
+      "hour": 16,
+      "price": 1.06,
+      "forecast": true
+     },
+     {
+      "hour": 17,
+      "price": 1.91,
+      "forecast": true
+     },
+     {
+      "hour": 18,
+      "price": 2.44,
+      "forecast": true
+     },
+     {
+      "hour": 19,
+      "price": 2.71,
+      "forecast": true
+     },
+     {
+      "hour": 20,
+      "price": 2.55,
+      "forecast": true
+     },
+     {
+      "hour": 21,
+      "price": 1.87,
+      "forecast": true
+     },
+     {
+      "hour": 22,
+      "price": 1.8,
+      "forecast": true
+     },
+     {
+      "hour": 23,
+      "price": 1.66,
+      "forecast": true
+     }
+    ]
+   }
+  ]
+ }
+}

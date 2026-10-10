@@ -1433,6 +1433,7 @@ _ALLOWED_SERVICES = {
     'beo-source-dr-news',
     'beo-source-todo',
     'beo-source-contacts',
+    'beo-source-dashboard',
     'beo-librespot', 'beo-shairport', 'beo-health', 'beo-beo6',
 }
 

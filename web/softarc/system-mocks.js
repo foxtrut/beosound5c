@@ -14,6 +14,7 @@
         'beo-source-dr-news': 'Running',
         'beo-source-todo': 'Running',
         'beo-source-contacts': 'Running',
+        'beo-source-dashboard': 'Running',
     };
 
     const system = {

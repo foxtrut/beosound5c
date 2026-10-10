@@ -63,6 +63,9 @@ const AppConfig = {
     // Contacts source (KONTAKTER in Danish)
     contactsServiceUrl: 'http://localhost:8794',
 
+    // Dashboard source (OVERBLIK in Danish)
+    dashboardServiceUrl: 'http://localhost:8795',
+
     // Radio source (Radio Browser)
     radioServiceUrl: 'http://localhost:8779',
 

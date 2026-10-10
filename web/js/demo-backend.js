@@ -69,6 +69,7 @@
             { id: 'dr_news', title: 'DR NYHEDER', preset: 'dr_news', dynamic: true },
             { id: 'todo', title: 'TO-DO', preset: 'todo', dynamic: true },
             { id: 'contacts', title: 'CONTACTS', preset: 'contacts', dynamic: true },
+            { id: 'dashboard', title: 'DASHBOARD', preset: 'dashboard', dynamic: true },
             { id: 'scenes', title: 'SCENES' },
             { id: 'security', title: 'SECURITY', type: 'webpage',
               url: 'softarc/security.html' },
@@ -169,6 +170,7 @@
         '8792': 'dr_news',
         '8793': 'todo',
         '8794': 'contacts',
+        '8795': 'dashboard',
     };
 
     // Endpoint → demo file, per source. Shapes match what each service
@@ -193,6 +195,7 @@
         dr_news:     { '/articles': 'dr_news_articles.json' },
         todo:        { '/api/items': 'todo_items.json' },
         contacts:    { '/api/contacts': 'contacts.json' },
+        dashboard:   { '/api/dashboard': 'dashboard.json' },
     };
 
     // radio_browse.json is keyed by browse path; the others are served as-is.
@@ -223,6 +226,20 @@
             data.hourly = data.hourly.map((h, i) => (
                 { ...h, time: `${String((startHour + i) % 24).padStart(2, '0')}:00` }
             ));
+        }
+        return data;
+    }
+
+    // dashboard.json's electricity prices carry fixed dates so the committed
+    // fixture stays stable; serve them as today and tomorrow so the chart has
+    // a current hour to mark.
+    function _relativizeDashboardDemo(data) {
+        const days = data.electricity?.days;
+        if (Array.isArray(days)) {
+            const pad = n => String(n).padStart(2, '0');
+            const key = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+            const day = new Date();
+            days.forEach(d => { d.date = key(day); day.setDate(day.getDate() + 1); });
         }
         return data;
     }
@@ -344,6 +361,9 @@
                     if (!r.ok) return jsonResponse([]);
                     if (file === 'weather_forecast.json') {
                         return jsonResponse(_relativizeWeatherDemo(await r.json()));
+                    }
+                    if (file === 'dashboard.json') {
+                        return jsonResponse(_relativizeDashboardDemo(await r.json()));
                     }
                     if (!KEYED_BY_PATH.has(file)) return r;
                     // Browse endpoints take a ?path= and return that level.
