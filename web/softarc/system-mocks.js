@@ -13,6 +13,7 @@
         'beo-source-weather': 'Running', 'beo-source-calendar': 'Running',
         'beo-source-dr-news': 'Running',
         'beo-source-todo': 'Running',
+        'beo-source-contacts': 'Running',
     };
 
     const system = {

@@ -29,6 +29,7 @@ DEFAULT_SOURCE_HANDLES = {
     "calendar": {"go", "left", "right", "up", "down"},
     "dr_news": {"go", "left", "right", "up", "down"},
     "todo": {"go", "left", "right", "up", "down"},
+    "contacts": {"go", "left", "right", "up", "down"},
     "radio": {"play", "pause", "next", "prev", "stop", "go", "left", "right",
               "up", "down"} | _DIGITS,
     # No digits: an AirPlay session has no station or track numbering to
@@ -53,6 +54,7 @@ DEFAULT_SOURCE_PORTS = {
     "airplay": 8782,
     "dr_news": 8792,
     "todo": 8793,
+    "contacts": 8794,
     "join": 8766,
 }
 

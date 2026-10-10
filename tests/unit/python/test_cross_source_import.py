@@ -39,6 +39,7 @@ SOURCE_MODULES = [
     "sources.weather",
     "sources.calendar_source.service",
     "sources.todo.service",
+    "sources.contacts.service",
     # sources.cd requires pyudev (Linux-only) — skipped conditionally below.
 ]
 

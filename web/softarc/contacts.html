@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contacts - Beosound 5c</title>
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="../assets/favicons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="../assets/favicons/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="../assets/favicons/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="../assets/favicons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="../assets/favicons/android-chrome-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="../assets/favicons/android-chrome-512x512.png">
+    <link rel="manifest" href="../assets/favicons/site.webmanifest">
+    <meta name="theme-color" content="#000000">
+
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="../assets/phosphor/phosphor.css">
+</head>
+<body>
+    <div id="app">
+        <div class="counter">
+            <div id="counter-path"></div>
+            <span id="current-item">1</span> / <span id="total-items">0</span>
+        </div>
+        <div class="hierarchy-depth-1" id="hierarchy-background"></div>
+        <div class="arc-container" id="arc-container"></div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/demo-backend.js"></script>
+    <script src="../js/arc-utils.js"></script>
+    <script src="../js/emulator-bridge.js"></script>
+    <script src="script-v2.js"></script>
+    <script>
+        const CONTACTS_URL = (typeof AppConfig !== 'undefined' && AppConfig.contactsServiceUrl)
+            ? AppConfig.contactsServiceUrl
+            : 'http://localhost:8794';
+
+        const EMPTY_ID = 'contacts-empty';
+
+        const CONTACTS_STRINGS = {
+            en: { empty: 'No contacts yet', age: (n) => `${n} years` },
+            da: { empty: 'Ingen kontakter endnu', age: (n) => `${n} år` },
+        };
+
+        function contactsLang() {
+            // An explicit device setting (config.json's "language") wins over the
+            // browser's own locale when set to anything but "auto"/unset — same
+            // rule as the weather, calendar and to-do views.
+            const override = window.AppConfig?.language;
+            const lang = ((override && override !== 'auto') ? override : navigator.language || 'en')
+                .toLowerCase().split('-')[0];
+            return CONTACTS_STRINGS[lang] ? lang : 'en';
+        }
+
+        function contactsText(key) {
+            return CONTACTS_STRINGS[contactsLang()][key];
+        }
+
+        // "1980-03-12" → "12. marts 1980 (46 år)" / "12 March 1980 (46 years)".
+        function formatBirthday(iso) {
+            const [y, m, d] = iso.split('-').map(Number);
+            if (!y || !m || !d) return iso;
+            const lang = contactsLang();
+            const date = new Intl.DateTimeFormat(lang === 'da' ? 'da-DK' : 'en-GB',
+                { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+                .format(new Date(Date.UTC(y, m - 1, d)));
+            const now = new Date();
+            let age = now.getFullYear() - y;
+            if (now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) age -= 1;
+            // The device can boot with an old date; leave the age out rather than show nonsense.
+            return age >= 0 ? `${date} (${contactsText('age')(age)})` : date;
+        }
+
+        // Detail rows shown when GO is pressed on a contact, in this order.
+        const DETAIL_FIELDS = [
+            ['phone', 'phone'],
+            ['email', 'envelope'],
+            ['address', 'map-pin'],
+            ['birthday', 'cake'],
+            ['note', 'note'],
+        ];
+
+        function contactDetails(raw) {
+            return DETAIL_FIELDS
+                .filter(([field]) => raw[field])
+                .map(([field, icon]) => ({
+                    id: `${raw.id}:${field}`,
+                    text: field === 'birthday' ? formatBirthday(raw[field]) : raw[field],
+                    icon,
+                }));
+        }
+
+        function mapContact(raw) {
+            if (raw.id === EMPTY_ID) {
+                return { id: raw.id, name: contactsText('empty'), icon: 'address-book', color: '#777', actionable: false };
+            }
+            // name is rendered with textContent by ArcList — never as HTML.
+            // The arc id carries the contact's content: ArcList only moves
+            // elements whose ids are unchanged on reload, so an edit from the
+            // phone would otherwise keep showing the old name.
+            const item = {
+                id: [raw.id, raw.name, raw.phone, raw.email, raw.address, raw.birthday, raw.note, raw.photo].join(':'),
+                name: raw.name,
+                details: contactDetails(raw),
+            };
+            if (raw.photo) {
+                // The picture replaces the icon on the contact's tile.
+                item.image = `${CONTACTS_URL}/api/contacts/${encodeURIComponent(raw.id)}/photo?v=${encodeURIComponent(raw.photo)}`;
+            } else {
+                item.icon = 'user';
+                item.color = '#fff';
+            }
+            return item;
+        }
+
+        function mapDetail(raw) {
+            return { id: raw.id, name: raw.text, icon: raw.icon, color: '#fff', actionable: false };
+        }
+
+        async function loadContacts() {
+            const resp = await fetch(`${CONTACTS_URL}/api/contacts`, { cache: 'no-store' });
+            if (!resp.ok) throw new Error(`Fetch failed: ${resp.status}`);
+            const data = await resp.json();
+            const contacts = Array.isArray(data.contacts) ? data.contacts : [];
+            return contacts.length ? contacts : [{ id: EMPTY_ID }];
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            window.arcListInstance = new ArcList({
+                rootLoader: loadContacts,
+                levels: [
+                    {
+                        itemMapper: mapContact,
+                        childrenKey: 'details',
+                        isContainer: (item) => item.details?.length > 0,
+                    },
+                    { itemMapper: mapDetail },
+                ],
+                storagePrefix: 'contacts_arclist',
+                context: 'contacts',
+                webhookUrl: typeof AppConfig !== 'undefined' ? AppConfig.webhookUrl : null,
+            });
+        });
+    </script>
+</body>
+</html>

@@ -35,6 +35,7 @@ ALL_SERVICES=(
     "beo-source-airplay.service"
     "beo-source-dr-news.service"
     "beo-source-todo.service"
+    "beo-source-contacts.service"
     "beo-ui.service"
     "beo-notify-failure@.service"
     "beo-health.service"
@@ -71,6 +72,7 @@ STATUS_SERVICES=(
     "beo-source-airplay.service"
     "beo-source-dr-news.service"
     "beo-source-todo.service"
+    "beo-source-contacts.service"
     "beo-ui.service"
 )
 
@@ -104,6 +106,7 @@ SERVICE_DESC["beo-source-radio.service"]="Radio Source (Port 8779)"
 SERVICE_DESC["beo-source-airplay.service"]="AirPlay Source (Port 8782)"
 SERVICE_DESC["beo-source-dr-news.service"]="DR News Source (Port 8792)"
 SERVICE_DESC["beo-source-todo.service"]="To-do Source (Port 8793)"
+SERVICE_DESC["beo-source-contacts.service"]="Contacts Source (Port 8794)"
 SERVICE_DESC["beo-ui.service"]="Chromium UI Kiosk"
 
 # Optional sources: menu_key|service|emoji|label
@@ -123,4 +126,5 @@ OPTIONAL_SOURCES=(
     "AIRPLAY|beo-source-airplay.service|📶|AirPlay source"
     "DR NYHEDER|beo-source-dr-news.service|📰|DR News source"
     "TO-DO|beo-source-todo.service|📝|To-do list source"
+    "CONTACTS|beo-source-contacts.service|📇|Contacts source"
 )

@@ -384,6 +384,7 @@ const CFG_SOURCE_DEFS = [
     ]},
     { key: 'DR NYHEDER', label: 'DR News', hint: 'Articles from DR (Danmarks Radio) &mdash; no API key needed. Pick sections in <code>/etc/beosound5c/config.json</code> &rarr; <code>"dr_news"</code> &rarr; <code>"feeds"</code>.' },
     { key: 'TO-DO', label: 'To-do', hint: `To-do / shopping list with tick-off (HUSKELISTE in Danish). Edit it from your phone at <code>http://${location.hostname}:8793</code> &mdash; home network only.` },
+    { key: 'CONTACTS', label: 'Contacts', hint: `Contact list (KONTAKTER in Danish), shown on the arc. Home network only.<div style="margin-top:6px"><a class="cfg-auth-link" href="http://${location.hostname}:8794/" target="_blank" rel="noreferrer">Edit contacts →</a></div>` },
     { key: 'NEWS', label: 'News', fields: [
         { fid: 'guardian_api_key', label: 'Guardian API key', path: ['news','guardian_api_key'], placeholder: 'From theguardian.com/developer' },
     ]},
@@ -433,7 +434,7 @@ const BALANCE_EXCLUDED_TYPES = ['sonos', 'bluesound', 'heos', 'wiim', 'mozart', 
 const CFG_SOURCE_VIEWS = {
     'PLAYING':'playing','DR NYHEDER':'dr_news','SPEAKERS':'join','JOIN':'join','SPOTIFY':'spotify','TIDAL':'tidal',
     'APPLE MUSIC':'apple_music','PLEX':'plex','JELLYFIN':'jellyfin','RADIO':'radio','CD':'cd',
-    'USB':'usb','NEWS':'news','CALENDAR':'calendar','TO-DO':'todo','SCENES':'scenes','SYSTEM':'system','SHOWING':'showing',
+    'USB':'usb','NEWS':'news','CALENDAR':'calendar','TO-DO':'todo','CONTACTS':'contacts','SCENES':'scenes','SYSTEM':'system','SHOWING':'showing',
 };
 
 let _cfg = null;

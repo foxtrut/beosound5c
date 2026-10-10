@@ -60,6 +60,8 @@ const AppConfig = {
     drNewsServiceUrl: 'http://localhost:8792',
     // To-do source (HUSKELISTE in Danish; phone page on the same port)
     todoServiceUrl: 'http://localhost:8793',
+    // Contacts source (KONTAKTER in Danish)
+    contactsServiceUrl: 'http://localhost:8794',
 
     // Radio source (Radio Browser)
     radioServiceUrl: 'http://localhost:8779',

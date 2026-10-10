@@ -1432,6 +1432,7 @@ _ALLOWED_SERVICES = {
     'beo-source-apple-music', 'beo-source-jellyfin', 'beo-source-calendar', 'beo-source-airplay',
     'beo-source-dr-news',
     'beo-source-todo',
+    'beo-source-contacts',
     'beo-librespot', 'beo-shairport', 'beo-health', 'beo-beo6',
 }
 
