@@ -76,6 +76,12 @@ _MEDIA_NS = "{http://search.yahoo.com/mrss/}"
 _DR_PREFIX = "https://www.dr.dk/"
 _NEXT_DATA_RE = re.compile(
     r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.S)
+# Since October 2026 dr.dk streams its pages instead (Next.js app router):
+# the article JSON arrives as escaped strings in self.__next_f.push([1,"…"])
+# rather than in one __NEXT_DATA__ script. The blocks inside are unchanged.
+_FLIGHT_RE = re.compile(r'self\.__next_f\.push\(\[1,\s*("(?:[^"\\]|\\.)*")\s*\]\)')
+_FLIGHT_BODY_RE = re.compile(r'"body":\s*\[\s*\{\s*"type":\s*"[A-Za-z]+Component"')
+_FLIGHT_LIVEBLOG_RE = re.compile(r'"liveBlog":\s*\{')
 _IMAGE_SIZE_RE = re.compile(r"(AspectCrop|Resize)=\(\d+,\d+\)")
 _EMBED_RE = re.compile(r"<ncpost-content\b.*?</ncpost-content>", re.S | re.I)
 _PARAGRAPH_RE = re.compile(r"<p\b[^>]*>(.*?)</p>", re.S | re.I)
@@ -122,22 +128,63 @@ def parse_feed(xml_text):
     return entries
 
 
-def extract_article(page_html):
-    """Article page HTML → its embedded article dict, or None if not found.
+def _flight_payload(page_html):
+    """The streamed page's script chunks, joined back into one string."""
+    out = []
+    for chunk in _FLIGHT_RE.findall(page_html):
+        try:
+            out.append(json.loads(chunk))
+        except ValueError:
+            continue
+    return "".join(out)
 
-    Regular articles live under viewProps.article, short news ("Kort nyt")
-    under viewProps.resource.
+
+def _json_at(payload, index):
+    """Decode the JSON value starting at index, ignoring the text after it."""
+    try:
+        value, _ = json.JSONDecoder().raw_decode(payload, index)
+    except ValueError:
+        return None
+    return value
+
+
+def extract_article(page_html):
+    """Article page HTML → an article dict with body/liveBlog, else None.
+
+    Old pages carried it whole under viewProps.article (regular) or
+    viewProps.resource (short news). Streamed pages carry no such root,
+    so the body and live blog are picked out of the payload; the longest
+    body wins, since fact boxes carry nested ones.
     """
     match = _NEXT_DATA_RE.search(page_html)
-    if not match:
+    if match:
+        try:
+            data = json.loads(match.group(1))
+            view = data["props"]["pageProps"]["viewProps"]
+        except (ValueError, KeyError, TypeError):
+            view = {}
+        article = view.get("article") or view.get("resource")
+        if isinstance(article, dict):
+            return article
+
+    payload = _flight_payload(page_html)
+    if not payload:
         return None
-    try:
-        data = json.loads(match.group(1))
-        view = data["props"]["pageProps"]["viewProps"]
-    except (ValueError, KeyError, TypeError):
+
+    body = []
+    for m in _FLIGHT_BODY_RE.finditer(payload):
+        candidate = _json_at(payload, payload.index("[", m.start()))
+        if isinstance(candidate, list) and len(repr(candidate)) > len(repr(body)):
+            body = candidate
+
+    live = None
+    m = _FLIGHT_LIVEBLOG_RE.search(payload)
+    if m:
+        live = _json_at(payload, m.end() - 1)
+
+    if not body and not isinstance(live, dict):
         return None
-    article = view.get("article") or view.get("resource")
-    return article if isinstance(article, dict) else None
+    return {"body": body, "liveBlog": live if isinstance(live, dict) else {}}
 
 
 def html_to_paragraphs(fragment):

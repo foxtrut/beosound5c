@@ -108,6 +108,51 @@ def test_extract_missing_data():
     assert extract_article('<script id="__NEXT_DATA__">{broken</script>') is None
 
 
+def _flight_page(*fragments):
+    """A streamed dr.dk page: the article JSON split across push() chunks."""
+    scripts = "".join(f"<script>self.__next_f.push([1,{json.dumps(f)}])</script>"
+                      for f in fragments)
+    return f"<html><body>Fast refresh{scripts}</body></html>"
+
+
+def _flight_article(article):
+    """One page's payload, split mid-JSON the way the real stream arrives."""
+    blob = ('3:["$","main",null,{"article":'
+            + json.dumps(article, separators=(",", ":")) + "}]\n")
+    half = len(blob) // 2
+    return _flight_page(blob[:half], blob[half:])
+
+
+def test_extract_from_streamed_page():
+    article = {"body": [_para(_text("Jadesten")), _para(_text("Mayakulturen"))]}
+    assert extract_article(_flight_article(article))["body"] == article["body"]
+
+
+def test_streamed_page_prefers_the_outer_body_over_a_fact_box():
+    """Fact boxes carry their own "body", so the longest one has to win."""
+    inner = {"type": "FactBoxComponent", "expression": {
+        "title": "Blå bog", "body": [{"type": "Paragraph", "body": [_text("Født 1981")]}]}}
+    article = {"body": [_para(_text("Brødtekst")), inner, _para(_text("Mere tekst"))]}
+    body = extract_article(_flight_article(article))["body"]
+    assert [b["type"] for b in body] == [
+        "ParagraphComponent", "FactBoxComponent", "ParagraphComponent"]
+
+
+def test_extract_live_blog_from_streamed_page():
+    article = {"body": [_para(_text("Her i bloggen"))], "liveBlog": {
+        "id": "drsport/1",
+        "items": [{"id": "42", "title": "Mål", "content": "<p>Scoring.</p>"}]}}
+    extracted = extract_article(_flight_article(article))
+    assert extracted["liveBlog"]["items"][0]["id"] == "42"
+    link = "https://www.dr.dk/sporten/blog?focusId=42"
+    assert render_article(extracted, link) == "<p>Scoring.</p>"
+
+
+def test_streamed_page_without_article_data():
+    assert extract_article(_flight_page('3:["$","main",null,{}]\n')) is None
+    assert extract_article("<html><body>no data at all</body></html>") is None
+
+
 BLOG = {
     "body": [_para(_text("Her i bloggen får du seneste nyt."))],
     "liveBlog": {"id": "drsport/1", "items": [
