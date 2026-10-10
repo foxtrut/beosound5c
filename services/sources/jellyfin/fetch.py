@@ -49,13 +49,19 @@ def change_signature(item):
     return f"{stamp}:{item.get('ChildCount', '')}"
 
 
-def convert_track(client, item, fallback_artist=None, fallback_image=None):
+def convert_track(client, item, fallback_artist=None, fallback_image=None,
+                  fallback_album=None):
     artist = track_artist(item)
     if artist == 'Unknown' and fallback_artist:
         artist = fallback_artist
+    # ``Album`` is a base property on audio items, always serialized — it is
+    # not an ItemFields value, so it must not be added to a Fields query.
+    # Tracks reached through an album carry the album's own name as a
+    # fallback for the odd item that has none of its own.
     return {
         'name': item.get('Name') or 'Unknown',
         'artist': artist,
+        'album': item.get('Album') or fallback_album or '',
         'id': str(item.get('Id')),
         'url': client.stream_url(item.get('Id')),
         'image': client.image_url(item) or fallback_image,
@@ -81,7 +87,8 @@ def fetch_album_tracks(client, album):
     album_artist = album.get('AlbumArtist') or 'Unknown'
     album_image = client.image_url(album)
     return [convert_track(client, t, fallback_artist=album_artist,
-                          fallback_image=album_image)
+                          fallback_image=album_image,
+                          fallback_album=album.get('Name') or '')
             for t in items if t.get('MediaType') in (None, '', 'Audio')]
 
 
@@ -145,22 +152,30 @@ def main():
                     'tracks': cp.get('tracks', []),
                 }
             log(f"Loaded cache with {len(cache)} playlists")
-            # Stream URLs used to embed api_key. They no longer do — the
-            # token travels in the Authorization header — but a cache
-            # written before that change still carries one, and Jellyfin
-            # 12.1 answers 401 to those. Drop the whole cache the first
-            # time we see one; an unchanged playlist is otherwise never
-            # re-fetched and the stale URLs would survive forever.
+            # Two things make a cached track unusable, and the incremental
+            # fetch only refetches a playlist whose change signature moved —
+            # so each one has to invalidate the cache outright or it survives
+            # forever:
+            #  - Stream URLs used to embed api_key. They no longer do (the
+            #    token travels in the Authorization header), but a cache
+            #    written before that change still carries one, and Jellyfin
+            #    12.1 answers 401 to those.
+            #  - Tracks written before they carried an album name leave the
+            #    PLAYING view showing its em-dash placeholder.
+            stale = None
             for _pc in cache.values():
                 for _tr in _pc.get('tracks', []):
                     if 'api_key=' in (_tr.get('url') or ''):
-                        log("Cached stream URLs still embed api_key - "
-                            "invalidating cache for full refresh")
-                        cache = {}
+                        stale = "cached stream URLs still embed api_key"
+                    elif 'album' not in _tr:
+                        stale = "cached tracks predate the album field"
+                    if stale:
                         break
-                else:
-                    continue
-                break
+                if stale:
+                    break
+            if stale:
+                log(f"Invalidating cache for full refresh - {stale}")
+                cache = {}
         except Exception as e:
             log(f"Could not load cache: {e}")
 
