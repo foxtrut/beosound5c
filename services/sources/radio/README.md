@@ -43,10 +43,34 @@ curl 'https://de1.api.radio-browser.info/json/stations/byname/P1?limit=5' | pyth
 curl 'https://de1.api.radio-browser.info/json/stations/byuuid/960c660b-0601-11e8-ae97-52543be04c81'
 ```
 
-### Adding/removing via remote
+### Adding and removing
 
-- **RED button:** Toggle current station as favourite (add if not present, remove if present)
-- **BLUE button:** Remove current station from favourites
+**From the Config UI** — `http://<device>/softarc/config.html`, the radio
+favourites card. Pick a station out of the browse hierarchy, or enter a
+stream URL by hand under *custom*. Either way the UI posts `add_favourite`
+to the service, which writes the file straight away.
+
+**By editing the file**, then `sudo systemctl restart beo-source-radio`.
+
+**Over HTTP**, which is what the two commands below are for:
+
+```bash
+# Toggle whatever is playing right now
+curl -s -X POST localhost:8779/command \
+  -H 'Content-Type: application/json' -d '{"command":"toggle_favourite"}'
+
+# Add a specific station (the Config UI's path)
+curl -s -X POST localhost:8779/command -H 'Content-Type: application/json' \
+  -d '{"command":"add_favourite","station":{"stationuuid":"...","name":"...","url_resolved":"..."}}'
+```
+
+There is **no remote-button shortcut for favourites.** A colour button only
+reaches this source when it is bound to a station under
+`radio.station_buttons`, and a bound button *plays* that station — it does
+not toggle a favourite. Unbound, the router keeps the colour buttons for
+itself: RED → Home Assistant, BLUE → JOIN, GREEN/YELLOW → balance. The
+digit buttons are the remote's only favourites feature, and they play
+rather than edit.
 
 ## Sveriges Radio Now-Playing
 
@@ -68,6 +92,36 @@ When a program changes while listening, the metadata and artwork update automati
 | P4 Plus | 4951 | `962c1da9-0601-11e8-ae97-52543be04c81` |
 
 To add more SR channels, add entries to `SR_CHANNEL_MAP` in `service.py`. Find channel IDs at `https://api.sr.se/api/v2/channels?format=json`.
+
+## Language
+
+Everything the source names itself is available in Danish: the root
+categories, the heading of each browse level, and the country and genre
+words in station subtitles and in the PLAYING view. The strings and lookup
+tables live in `radio_i18n.py`.
+
+The language comes from `config.json`'s top-level `"language"`, the same
+setting the arc menu labels read. `"auto"` (the default) means English here:
+a service has no browser locale to follow the way the web views do.
+
+What is *not* translated, by design:
+
+- **Station names** — they are the station's own name.
+- **Browse paths and ids** (`countries/Germany`, `genres/rock`) — the id is
+  the contract the UI drills down on and the integration tests assert
+  against. Only the label is translated.
+- **Genres the Radio Browser API carries in another language.** Its tag list
+  is free text and its top entries are largely Spanish (`entretenimiento`,
+  `música regional mexicana`); a station's own self-description is left as
+  it was written. The same goes for the junk entries in the language list.
+- **Demo mode.** `web/json/demo/radio_browse.json` is a static fixture served
+  without going through the service, so it stays English whatever the
+  language is.
+
+A country, genre or language the tables don't cover falls back to the word
+as the API spelled it, so a new entry upstream shows up untranslated rather
+than disappearing. `COUNTRIES_DA` covers every country the API currently
+returns.
 
 ## Curated Lists
 

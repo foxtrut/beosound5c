@@ -22,6 +22,7 @@ from collections import OrderedDict
 from aiohttp import web, ClientSession
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from sources.radio import radio_i18n as i18n
 from lib.config import cfg
 from lib.source_base import SourceBase
 
@@ -57,14 +58,25 @@ CURATED_SVERIGE = [
     "8b00bcfc-4d94-11ea-b877-52543be04c81",  # Retro FM Skåne
 ]
 
+# P4 and P5 are the Østjylland feeds. DR's own ICY descriptions are what
+# settles which is which — the database's names disagree with each other,
+# and it was Radio Browser listing "DR P5 København" on A25H that had this
+# list playing København under the name "DR P5". A25H is "P5", A24H is
+# "P5 Østjylland", A28H is "P5 København", straight from live-icy.dr.dk.
+#
+# The DR entries are the database's MP3 ones, but what actually plays and
+# what you see come from STATION_STREAM and STATION_ARTWORK below: DR's own
+# AAC 325k HLS and DR's own channel logos. The database's "(AAC)" entries
+# are no use for either — they point at a DR origin whose variant playlists
+# all 404, which is why they don't play.
 CURATED_DANMARK = [
     "960f5a18-0601-11e8-ae97-52543be04c81",  # DR P1
     "960f5af4-0601-11e8-ae97-52543be04c81",  # DR P2
-    "b0f1b100-23b5-4c7b-bdb1-a2c68006d6bf",  # DR P3 (AAC 324k)
-    "960f5358-0601-11e8-ae97-52543be04c81",  # DR P4 København
-    "9610bcba-0601-11e8-ae97-52543be04c81",  # DR P5
+    "960f5bcd-0601-11e8-ae97-52543be04c81",  # DR P3
+    "9610bbeb-0601-11e8-ae97-52543be04c81",  # DR P4 Østjylland
+    "b69d7997-fec2-419b-b33d-d01f7ebba8b8",  # DR P5 Østjylland
     "9610bd91-0601-11e8-ae97-52543be04c81",  # DR P6 BEAT
-    "9298e58e-3dd2-418c-bd39-6798f59b8b10",  # DR P8 Jazz (AAC 324k)
+    "9610c01b-0601-11e8-ae97-52543be04c81",  # DR P8 Jazz
     "9610c1ca-0601-11e8-ae97-52543be04c81",  # DR Nyheder
     "963cba5e-0601-11e8-ae97-52543be04c81",  # Radio Soft
     "1eb0a70c-2cc1-11e9-a35e-52543be04c81",  # Nova 100% Dansk
@@ -74,6 +86,111 @@ CURATED_DANMARK = [
     "0d939aa0-cce8-4841-92fe-1a03d36da0d3",  # Classic Rock Danmark
     "632fe760-a124-4385-9061-6acb4bd14d0f",  # The Voice
 ]
+
+# Stream overrides, by UUID: DR's own AAC 325k HLS instead of the 128k
+# Icecast MP3 the Radio Browser entry carries.
+#
+# This has to be hardcoded because the "(AAC)" entries in the database point
+# at drliveradio1/2097651, whose master playlist advertises variants that all
+# 404 — that origin is broken at DR's end, which is what made those entries
+# unplayable. drliveradio2/2118698 serves the same channels and works. Each
+# URL below was played on the device with mpv for 12s and produced a steady
+# "aac 2ch 44100 Hz 325 kbps"; masterab.m3u8 rather than a fixed variant, so
+# ffmpeg picks the bitrate it can actually fetch.
+#
+# No entry for DR Nyheder (no slug on this origin answers) — it stays MP3.
+# If DR retires this origin the stream 404s and the channel goes silent, so
+# anything added here is play-tested on the device first.
+DR_HLS_BASE = "https://drliveradio2.akamaized.net/hls/live/2118698"
+
+
+def _dr_hls(slug: str) -> tuple:
+    """(url, codec, bitrate) for one DR channel. The codec and bitrate travel
+    with the URL because the Radio Browser entry describes the MP3 stream we
+    are NOT playing — without them the UI reads "MP3 128kbps" over AAC audio.
+    320 is the top variant masterab.m3u8 offers; ffmpeg falls back to 262k if
+    it cannot fetch that one, so this is the nominal rate, not a measurement.
+    """
+    return (f"{DR_HLS_BASE}/{slug}/masterab.m3u8", "AAC", 320)
+
+
+STATION_STREAM = {
+    "960f5a18-0601-11e8-ae97-52543be04c81": _dr_hls("p1"),
+    "960f5af4-0601-11e8-ae97-52543be04c81": _dr_hls("p2"),
+    "960f5bcd-0601-11e8-ae97-52543be04c81": _dr_hls("p3"),
+    "9610bbeb-0601-11e8-ae97-52543be04c81": _dr_hls("p4ostjylland"),
+    "b69d7997-fec2-419b-b33d-d01f7ebba8b8": _dr_hls("p5ostjylland"),
+    "9610bd91-0601-11e8-ae97-52543be04c81": _dr_hls("p6"),
+    "9610c01b-0601-11e8-ae97-52543be04c81": _dr_hls("p8"),
+}
+
+# Display-name overrides, by UUID. The PLAYING view truncates the title with
+# a CSS ellipsis, and "DR P4 Østjyllands Radio" came out as
+# "DR P4 Østjylland…" — the same width, with the channel's region half eaten.
+# The shorter name is what DR itself calls the channel.
+#
+# Display only: the station dict keeps the database's name, so play_by_name
+# still matches on either, and a favourite saved from here records the name
+# Radio Browser knows it by.
+STATION_NAME = {
+    "9610bbeb-0601-11e8-ae97-52543be04c81": "DR P4 Østjylland",
+    "632fe760-a124-4385-9061-6acb4bd14d0f": "The Voice",
+    "0d939aa0-cce8-4841-92fe-1a03d36da0d3": "Classic Rock DK",
+}
+
+# Station artwork overrides, by UUID. The Radio Browser entries for DR's
+# playable MP3 streams carry dr.dk/favicon.ico — the corporate mark at
+# 64x64, the same picture for every channel, and nothing at all for P2.
+# DR's own channel logos are 800x800 SVGs, served to DR LYD and pointed at
+# by the "(AAC)" entries we can't use for audio; these are those URLs.
+#
+# They are Next.js build artifacts, so the hash changes when DR rebuilds
+# the site and the URL starts 404ing. That degrades to the generic radio
+# icon, which is what these stations looked like before — no worse than
+# not having the map. DR Nyheder has no channel logo of its own.
+DR_LOGO_BASE = "https://www.dr.dk/lyd/_next/static/media"
+def _logo_tile(bg: str, rows: tuple) -> str:
+    """A station tile shaped like DR's own channel logos — a solid 800x800
+    square with a white wordmark — as a data: URI, the way the flag icons
+    below are. For the stations Radio Browser has nothing usable for: a
+    missing favicon, a broken one, or the operator's generic corporate mark
+    repeated across every channel. `rows` is (text, baseline, size, weight,
+    letter-spacing) per line.
+    """
+    text = "".join(
+        f'<text x="400" y="{y}" text-anchor="middle" fill="#fff"'
+        f' font-family="Helvetica Neue,Helvetica,Arial,sans-serif"'
+        f' font-size="{size}" font-weight="{weight}"'
+        f' letter-spacing="{spacing}">{label}</text>'
+        for label, y, size, weight, spacing in rows
+    )
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800">'
+           f'<path d="M0 0h800v800H0z" fill="{bg}"/>{text}</svg>')
+    return "data:image/svg+xml," + urllib.parse.quote(svg, safe="")
+
+
+STATION_ARTWORK = {
+    "960f5a18-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p1.29c35f9c.svg",
+    "960f5af4-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p2.041e766f.svg",
+    "960f5bcd-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p3.28743ad0.svg",
+    "9610bbeb-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p4.a9a465ed.svg",
+    "b69d7997-fec2-419b-b33d-d01f7ebba8b8": f"{DR_LOGO_BASE}/p5.1704bd78.svg",
+    "9610bd91-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p6beat.4efb4634.svg",
+    "9610c01b-0601-11e8-ae97-52543be04c81": f"{DR_LOGO_BASE}/p8jazz.3748d702.svg",
+    # Nothing upstream to point at for these four: DR Nyheder has no channel
+    # logo of its own, Classic FM and Classic Rock Danmark have no favicon at
+    # all, and Radio4's "favicon.ico" is 78 bytes of the literal text
+    # "data:image...". Own tiles rather than their real marks — this is a
+    # legible placeholder, not a reproduction of anyone's logo.
+    "9610c1ca-0601-11e8-ae97-52543be04c81": _logo_tile("#14467d", (
+        ("DR", 390, 260, 700, 4), ("NYHEDER", 545, 124, 600, 8))),
+    "7a17dda6-45b5-11e8-8919-52543be04c81": _logo_tile("#7b1e2b", (
+        ("CLASSIC", 380, 152, 600, 4), ("FM", 570, 215, 700, 6))),
+    "0d939aa0-cce8-4841-92fe-1a03d36da0d3": _logo_tile("#2e2e32", (
+        ("CLASSIC", 365, 140, 600, 4), ("ROCK", 540, 200, 700, 6))),
+    "6397fc3c-fca0-11e9-bbf2-52543be04c81": _logo_tile("#0d6e6e", (
+        ("RADIO", 385, 165, 600, 4), ("4", 600, 265, 700, 0))),
+}
 
 # Inline SVG data URIs for flag category icons (Nordic cross, rounded corners)
 FLAG_SVERIGE = "data:image/svg+xml,%3Csvg viewBox='0 0 128 128' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='128' height='128' rx='20' fill='%23005293'/%3E%3Crect y='52' width='128' height='24' fill='%23FECC02'/%3E%3Crect x='40' y='0' width='24' height='128' fill='%23FECC02'/%3E%3C/svg%3E"
@@ -88,6 +205,11 @@ SR_CHANNEL_MAP = {
 }
 
 SR_POLL_INTERVAL = 60  # seconds
+
+# Now-playing from the stream itself (Icecast ICY StreamTitle).
+ICY_POLL_INTERVAL = 30   # seconds between reads while a station plays
+ICY_FETCH_TIMEOUT = 12   # a read that stalls must not hold the poll loop
+ICY_MAX_METAINT = 64000  # bytes of audio skipped per read — refuse the absurd
 
 
 # Short-name suggestion — generates an alias for play_by_name (BeoRemote
@@ -205,6 +327,9 @@ class RadioService(SourceBase):
         self._sr_channel_images: dict[str, bytes] = {}  # uuid → PNG bytes
         self._sr_artwork_cache: dict[str, tuple[str, bytes]] = {}  # uuid → (title, image bytes)
         self._sr_poll_task: asyncio.Task | None = None
+        self._icy_title: str = ""              # last StreamTitle seen
+        self._icy_uuid: str = ""               # the station it belongs to
+        self._icy_poll_task: asyncio.Task | None = None
 
     async def on_start(self):
         self._api_session = ClientSession(
@@ -213,13 +338,46 @@ class RadioService(SourceBase):
         self._load_favourites()
         self._load_last_station()
 
-        await self.register("available")
+        await self._adopt_running_stream()
         # Pre-warm curated station caches so play_by_name is instant
         self._spawn(self._prewarm_curated(), name="prewarm_curated")
         self._sr_poll_task = asyncio.create_task(self._sr_poll_loop())
+        self._icy_poll_task = self._spawn(self._icy_poll_loop(), name="radio_icy_poll")
         log.info("Radio source ready (%d favourites, last=%s)",
                  len(self._favourites),
                  self._current_station.get("name") if self._current_station else "none")
+
+    async def _adopt_running_stream(self):
+        """Register as playing when the player is already streaming our last
+        station, rather than unconditionally as "available".
+
+        The player is a separate service, so restarting this one alone —
+        a deploy, or systemd's Restart=on-failure after a crash — leaves mpv
+        streaming. Registering "available" then puts the UI in a state the
+        room contradicts: sound out of the speakers and an empty PLAYING
+        view, until something happens to start playback again.
+
+        Adopts only when the player's current URL is the one this station
+        would play, so a stream some other source started is never claimed.
+        """
+        station = self._current_station
+        if station:
+            try:
+                state = await self.player_state()
+                if state in ("playing", "paused"):
+                    playing = await self.player_track_uri()
+                    if playing and playing == self._stream_for(station):
+                        self._playing_state = state
+                        await self.register(state)
+                        await self.post_media_update(
+                            **self._build_meta(station), state=state)
+                        self._start_state_poll()
+                        log.info("Adopted stream already playing: %s (%s)",
+                                 station.get("name"), state)
+                        return
+            except Exception as e:
+                log.warning("Could not reconcile with player on startup: %s", e)
+        await self.register("available")
 
     async def on_stop(self):
         if self._sr_poll_task:
@@ -300,6 +458,7 @@ class RadioService(SourceBase):
 
     async def _browse(self, path: str) -> dict:
         parts = path.split("/") if path else []
+        ui_lang = self._ui_lang()
 
         if not parts:
             return self._root_categories()
@@ -311,15 +470,15 @@ class RadioService(SourceBase):
                 "/json/stations/topvote?limit=100&hidebroken=true",
                 ttl=CACHE_TTL_STATIONS,
             )
-            return self._station_list("Popular", "popular", "", stations)
+            return self._station_list(i18n.t("popular", ui_lang), "popular", "", stations)
 
         if category == "sverige":
             stations = await self._fetch_curated("Sweden", CURATED_SVERIGE)
-            return self._station_list("Swedish", "sverige", "", stations)
+            return self._station_list(i18n.t("swedish", ui_lang), "sverige", "", stations)
 
         if category == "danmark":
             stations = await self._fetch_curated("Denmark", CURATED_DANMARK)
-            return self._station_list("Danish", "danmark", "", stations)
+            return self._station_list(i18n.t("danish", ui_lang), "danmark", "", stations)
 
         if category == "countries":
             if len(parts) == 1:
@@ -331,11 +490,11 @@ class RadioService(SourceBase):
                 return {
                     "path": "countries",
                     "parent": "",
-                    "name": "Countries",
+                    "name": i18n.t("countries", ui_lang),
                     "items": [
                         {
                             "type": "category",
-                            "name": c["name"],
+                            "name": i18n.country(c["name"], ui_lang),
                             "id": f"countries/{c['name']}",
                             "path": f"countries/{c['name']}",
                             "count": c.get("stationcount", 0),
@@ -348,7 +507,8 @@ class RadioService(SourceBase):
                 f"/json/stations/bycountry/{urllib.parse.quote(country)}?order=votes&limit=100&hidebroken=true",
                 ttl=CACHE_TTL_STATIONS,
             )
-            return self._station_list(country, f"countries/{country}", "countries", stations)
+            return self._station_list(i18n.country(country, ui_lang), f"countries/{country}",
+                                      "countries", stations)
 
         if category == "genres":
             if len(parts) == 1:
@@ -360,11 +520,11 @@ class RadioService(SourceBase):
                 return {
                     "path": "genres",
                     "parent": "",
-                    "name": "Genres",
+                    "name": i18n.t("genres", ui_lang),
                     "items": [
                         {
                             "type": "category",
-                            "name": t["name"].title(),
+                            "name": i18n.genre_label(t["name"], ui_lang),
                             "id": f"genres/{t['name']}",
                             "path": f"genres/{t['name']}",
                             "count": t.get("stationcount", 0),
@@ -377,7 +537,7 @@ class RadioService(SourceBase):
                 f"/json/stations/bytag/{urllib.parse.quote(tag)}?order=votes&limit=100&hidebroken=true",
                 ttl=CACHE_TTL_STATIONS,
             )
-            return self._station_list(tag.title(), f"genres/{tag}", "genres", stations)
+            return self._station_list(i18n.genre_label(tag, ui_lang), f"genres/{tag}", "genres", stations)
 
         if category == "languages":
             if len(parts) == 1:
@@ -389,11 +549,11 @@ class RadioService(SourceBase):
                 return {
                     "path": "languages",
                     "parent": "",
-                    "name": "Languages",
+                    "name": i18n.t("languages", ui_lang),
                     "items": [
                         {
                             "type": "category",
-                            "name": l["name"].title(),
+                            "name": i18n.language(l["name"], ui_lang),
                             "id": f"languages/{l['name']}",
                             "path": f"languages/{l['name']}",
                             "count": l.get("stationcount", 0),
@@ -406,38 +566,53 @@ class RadioService(SourceBase):
                 f"/json/stations/bylanguage/{urllib.parse.quote(lang)}?order=votes&limit=100&hidebroken=true",
                 ttl=CACHE_TTL_STATIONS,
             )
-            return self._station_list(lang.title(), f"languages/{lang}", "languages", stations)
+            return self._station_list(i18n.language(lang, ui_lang), f"languages/{lang}",
+                                      "languages", stations)
 
         if category == "favourites":
             self._browse_stations = list(self._favourites)
             return {
                 "path": "favourites",
                 "parent": "",
-                "name": "Favourites",
+                "name": i18n.t("favourites", ui_lang),
                 "items": [self._station_to_item(s) for s in self._favourites],
             }
 
-        return {"path": path, "parent": "", "name": "Unknown", "items": []}
+        return {"path": path, "parent": "", "name": i18n.t("unknown", ui_lang), "items": []}
+
+    def _ui_lang(self):
+        """config.json's top-level "language" — the same setting the arc menu
+        labels in services/router.py read. Looked up per request rather than
+        cached, so a language change takes effect without a restart."""
+        return cfg("language", default="auto")
 
     def _root_categories(self) -> dict:
+        ui_lang = self._ui_lang()
         return {
             "path": "",
             "parent": None,
-            "name": "Radio",
+            "name": i18n.t("radio", ui_lang),
             "items": [
-                {"type": "category", "name": "Popular", "id": "popular", "path": "popular",
-                 "icon": "star", "color": "#F9CA24"},
-                {"type": "category", "name": "Swedish", "id": "sverige", "path": "sverige",
-                 "image": FLAG_SVERIGE},
-                {"type": "category", "name": "Danish", "id": "danmark", "path": "danmark",
-                 "image": FLAG_DANMARK},
-                {"type": "category", "name": "Favourites", "id": "favourites", "path": "favourites",
+                {"type": "category", "name": i18n.t("favourites", ui_lang),
+                 "id": "favourites", "path": "favourites",
                  "icon": "heart", "color": "#FF6B6B"},
-                {"type": "category", "name": "Countries", "id": "countries", "path": "countries",
+                {"type": "category", "name": i18n.t("popular", ui_lang),
+                 "id": "popular", "path": "popular",
+                 "icon": "star", "color": "#F9CA24"},
+                {"type": "category", "name": i18n.t("danish", ui_lang),
+                 "id": "danmark", "path": "danmark",
+                 "image": FLAG_DANMARK},
+                {"type": "category", "name": i18n.t("swedish", ui_lang),
+                 "id": "sverige", "path": "sverige",
+                 "image": FLAG_SVERIGE},
+                {"type": "category", "name": i18n.t("countries", ui_lang),
+                 "id": "countries", "path": "countries",
                  "icon": "globe", "color": "#A29BFE"},
-                {"type": "category", "name": "Genres", "id": "genres", "path": "genres",
+                {"type": "category", "name": i18n.t("genres", ui_lang),
+                 "id": "genres", "path": "genres",
                  "icon": "music-notes", "color": "#FD79A8"},
-                {"type": "category", "name": "Languages", "id": "languages", "path": "languages",
+                {"type": "category", "name": i18n.t("languages", ui_lang),
+                 "id": "languages", "path": "languages",
                  "icon": "translate", "color": "#74B9FF"},
             ],
         }
@@ -448,28 +623,56 @@ class RadioService(SourceBase):
         self._browse_stations = stations or []
         return {"path": path, "parent": parent, "name": name, "items": items}
 
+    def _stream_for(self, station: dict) -> str:
+        """The URL to play — a curated override where we have a better stream
+        than the Radio Browser entry, otherwise the entry's own URL."""
+        override = STATION_STREAM.get(station.get("stationuuid", ""))
+        return override[0] if override else station.get(
+            "url_resolved", station.get("url", ""))
+
+    def _name_for(self, station: dict) -> str:
+        """The name to show — a shorter one where the database's runs past
+        what the UI can fit, otherwise the station's own name."""
+        return (STATION_NAME.get(station.get("stationuuid", ""))
+                or station.get("name", "Unknown"))
+
+    def _codec_for(self, station: dict) -> tuple:
+        """(codec, bitrate) of what actually plays. The Radio Browser entry
+        describes its own stream, so where _stream_for overrides the URL the
+        entry's codec and bitrate describe something we never play."""
+        override = STATION_STREAM.get(station.get("stationuuid", ""))
+        if override:
+            return override[1], override[2]
+        return station.get("codec", ""), station.get("bitrate", 0)
+
+    def _artwork_for(self, station: dict) -> str:
+        """The station's artwork URL — a curated override where we have a
+        better logo than the Radio Browser favicon, otherwise the favicon."""
+        return (STATION_ARTWORK.get(station.get("stationuuid", ""))
+                or station.get("favicon", ""))
+
     def _station_to_item(self, s) -> dict:
+        ui_lang = self._ui_lang()
         tags = s.get("tags", "")
-        tag_list = [t.strip() for t in tags.split(",") if t.strip()][:3]
-        codec = s.get("codec", "")
-        bitrate = s.get("bitrate", 0)
+        tag_list = [i18n.genre_tag(t, ui_lang) for t in tags.split(",") if t.strip()][:3]
+        codec, bitrate = self._codec_for(s)
         codec_str = f"{codec} {bitrate}kbps" if codec and bitrate else codec or ""
 
         subtitle_parts = []
         if tag_list:
             subtitle_parts.append(", ".join(tag_list))
         elif s.get("country"):
-            subtitle_parts.append(s["country"])
+            subtitle_parts.append(i18n.country(s["country"], ui_lang))
         if codec_str:
             subtitle_parts.append(codec_str)
 
         return {
             "type": "station",
-            "name": s.get("name", "Unknown"),
+            "name": self._name_for(s),
             "id": s.get("stationuuid", ""),
             "stationuuid": s.get("stationuuid", ""),
-            "url_resolved": s.get("url_resolved", s.get("url", "")),
-            "favicon": s.get("favicon", ""),
+            "url_resolved": self._stream_for(s),
+            "favicon": self._artwork_for(s),
             "country": s.get("country", ""),
             "tags": tags,
             "codec": codec,
@@ -532,6 +735,18 @@ class RadioService(SourceBase):
 
     async def _handle_favicon(self, request):
         url = request.query.get("url", "")
+
+        # Our own station tiles (STATION_ARTWORK) arrive as data: URIs —
+        # the UI routes every artwork URL through here, so serve them
+        # straight back instead of rejecting them as not-a-URL.
+        if url.startswith("data:image/"):
+            meta, _, payload = url.partition(",")
+            content_type = meta[len("data:"):].split(";")[0]
+            body = urllib.parse.unquote(payload).encode()
+            return web.Response(body=body, content_type=content_type, headers={
+                **self._cors_headers(), "Cache-Control": "public, max-age=86400"
+            })
+
         if not url or not url.startswith(("http://", "https://")):
             return web.Response(status=400, headers=self._cors_headers())
 
@@ -890,7 +1105,7 @@ class RadioService(SourceBase):
         return None
 
     async def _play_station(self, station: dict, action_ts=None):
-        url = station.get("url_resolved", station.get("url", ""))
+        url = self._stream_for(station)
         if not url:
             log.warning("No URL for station %s", station.get("name"))
             return
@@ -904,6 +1119,8 @@ class RadioService(SourceBase):
         prev_station = self._current_station
         prev_state = self._playing_state
 
+        if station.get("stationuuid", "") != self._icy_uuid:
+            self._icy_title = self._icy_uuid = ""
         self._current_station = station
         self._save_last_station()
         # Snapshot browse list for next/prev cycling (only when playing from browse)
@@ -1017,11 +1234,11 @@ class RadioService(SourceBase):
                 "artwork": artwork,
             }
 
+        ui_lang = self._ui_lang()
         tags = station.get("tags", "")
-        tag_list = [t.strip() for t in tags.split(",") if t.strip()][:3]
-        country = station.get("country", "")
-        codec = station.get("codec", "")
-        bitrate = station.get("bitrate", 0)
+        tag_list = [i18n.genre_tag(t, ui_lang) for t in tags.split(",") if t.strip()][:3]
+        country = i18n.country(station.get("country", ""), ui_lang)
+        codec, bitrate = self._codec_for(station)
 
         artist = ", ".join(tag_list) if tag_list else country
         album_parts = []
@@ -1033,13 +1250,119 @@ class RadioService(SourceBase):
             album_parts.append(codec)
         album = " · ".join(album_parts)
 
-        favicon = station.get("favicon", "")
-        artwork = f"http://localhost:{self.port}/favicon?url={favicon}" if favicon else ""
+        favicon = self._artwork_for(station)
+        artwork = (f"http://localhost:{self.port}/favicon"
+                   f"?url={urllib.parse.quote(favicon, safe='')}") if favicon else ""
 
-        return {"title": station.get("name", ""), "artist": artist, "album": album,
-                "artwork": artwork}
+        # The song rides alongside as ``track`` rather than replacing the
+        # title. The PLAYING view puts it on top with the station underneath;
+        # the immersive view never reads the field, so the artwork keeps its
+        # screen and the station name stays on the one line that fits there.
+        meta = {"title": self._name_for(station), "artist": artist,
+                "album": album, "artwork": artwork}
+        if self._icy_title and station.get("stationuuid", "") == self._icy_uuid:
+            meta["track"] = self._icy_title
+        return meta
 
     # ── Sveriges Radio now-playing ──
+
+    # ── Now-playing from the stream (ICY) ──
+
+    def _icy_url_for(self, station: dict) -> str:
+        """Where to read now-playing for this station, or "" if nowhere.
+
+        The station's own catalogue URL, which is the Icecast stream even for
+        the DR channels played as HLS: STATION_STREAM overrides only what is
+        played, so the entry still carries the URL that answers with ICY
+        metadata. DR's HLS carries none — it declares an ID3 stream in the
+        PMT and never puts a packet in it — so an .m3u8 is no use here.
+        """
+        url = station.get("url_resolved", station.get("url", ""))
+        if not url.startswith(("http://", "https://")) or ".m3u8" in url:
+            return ""
+        return url
+
+    async def _fetch_icy_title(self, url: str) -> str:
+        """One StreamTitle: connect, skip a metadata interval of audio, read
+        the metadata block, drop the connection. About 16 kB per read."""
+        async with self._api_session.get(
+                url, headers={"Icy-MetaData": "1"},
+                timeout=ICY_FETCH_TIMEOUT) as resp:
+            if resp.status != 200:
+                return ""
+            step = int(resp.headers.get("icy-metaint") or 0)
+            if not step or step > ICY_MAX_METAINT:
+                return ""
+            await resp.content.readexactly(step)
+            size = (await resp.content.readexactly(1))[0] * 16
+            if not size:
+                return ""
+            blob = await resp.content.readexactly(size)
+        match = re.search(r"StreamTitle='(.*?)';", blob.decode("utf-8", "replace"))
+        if not match:
+            return ""
+        # DR sends "/ Lana Del Rey - West Coast". Strip that leading slash
+        # only — plenty of titles have one of their own ("AC/DC").
+        return match.group(1).strip().lstrip("/").strip()
+
+    async def _icy_poll_loop(self):
+        """Follow the now-playing title while a station is playing.
+
+        Started once, at startup, and never from inside a play. A task
+        inherits the context it is created in, and post_media_update stamps
+        its payload from the _action_ts context var — so a poll spawned
+        during a play carried that play's timestamp for the rest of its life
+        and the router dropped every update it sent as stale_action_ts. From
+        startup the context is empty and the stamp falls back to the live
+        self._action_ts, which is how the SR poller has always worked.
+
+        Stations that send nothing — DR Nyheder, Radio Soft and The Voice
+        all send an empty StreamTitle — simply keep the station name as the
+        title, which is what the view showed before any of this.
+        """
+        while True:
+            try:
+                if self._playing_state in ("playing", "paused"):
+                    await self._icy_read_once()
+            except asyncio.CancelledError:
+                return
+            except Exception:
+                log.exception("ICY poll error (will retry)")
+            await self._icy_wait()
+
+    async def _icy_read_once(self):
+        """One read, broadcast only if the title actually changed."""
+        station = self._current_station
+        url = self._icy_url_for(station) if station else ""
+        if not url:
+            return
+        uuid = station.get("stationuuid", "")
+        try:
+            title = await self._fetch_icy_title(url)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            log.debug("ICY read failed for %s: %s", station.get("name"), e)
+            return                      # leave the last title standing
+        if (title, uuid) == (self._icy_title, self._icy_uuid):
+            return
+        self._icy_title, self._icy_uuid = title, uuid
+        if station is self._current_station:
+            log.info("Now playing on %s: %s",
+                     station.get("name"), title or "(ingen titel)")
+            await self.post_media_update(**self._build_meta(station),
+                                         state=self._playing_state)
+
+    async def _icy_wait(self):
+        """Wait for the next read, waking early when the station changes —
+        otherwise a new station wears no title for up to a full interval."""
+        for _ in range(ICY_POLL_INTERVAL):
+            await asyncio.sleep(1)
+            if self._playing_state not in ("playing", "paused"):
+                continue
+            current = (self._current_station or {}).get("stationuuid", "")
+            if current and current != self._icy_uuid:
+                return
 
     async def _sr_poll_loop(self):
         """Background poller for SR now-playing metadata."""

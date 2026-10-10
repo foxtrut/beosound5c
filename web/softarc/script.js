@@ -453,7 +453,11 @@ class ArcList {
                 this.exitChildView();
             }
         } else if (button === 'go') {
-            // Trigger "go" action (same as keyboard Enter)
+            // GO plays; LEFT is what opens a folder here. The v2 arc
+            // (script-v2.js) binds GO to drilling in instead, so the two
+            // lists answer the same press differently — see
+            // docs/arc-lists.md, where the question of unifying them is
+            // written down and parked.
             this.sendGoWebhook();
         }
     }

@@ -104,6 +104,7 @@ touch ~/beosound5c/NO_TELEMETRY
 - [Home Assistant integration](docs/home-assistant.md) — MQTT, webhooks, automation examples
 - [Google Calendar source](docs/google-calendar.md) — read-only agenda from a calendar's iCal URL
 - [Remotes & IR](docs/remotes.md) — BeoRemote One pairing, IR source buttons, Beo6
+- [Arc lists](docs/arc-lists.md) — the two wheel-list implementations, why GO means different things in them, and what survives a view change
 - [Development & contributing](docs/CONTRIBUTING.md) — local dev setup, repo layout, deploy script
 
 ## Acknowledgments

@@ -49,8 +49,11 @@ const DEFAULT_PLAYING_PRESET = {
         const titleEl = container.querySelector('.media-view-title');
         const artistEl = container.querySelector('.media-view-artist');
         const albumEl = container.querySelector('.media-view-album');
-        crossfadeText(titleEl, data.title || '—');
-        crossfadeText(artistEl, data.artist || '—');
+        // `track` is what is playing within `title` — a song on a radio
+        // station. With one, it leads and the station moves to the line
+        // below; without, the view is exactly as it was.
+        crossfadeText(titleEl, data.track || data.title || '—');
+        crossfadeText(artistEl, (data.track ? data.title : data.artist) || '—');
         crossfadeText(albumEl, data.album || '—');
         const img = container.querySelector('.playing-artwork');
         if (img && window.ArtworkManager) {
@@ -107,6 +110,7 @@ class MediaManager {
             title: '—',
             artist: '—',
             album: '—',
+            track: '',
             artwork: '',
             canvas_url: '',
             track_id: '',
@@ -150,6 +154,10 @@ class MediaManager {
             title: data.title || '—',
             artist: data.artist || '—',
             album: data.album || '—',
+            // What is playing within `title` — a song on a radio station.
+            // mediaInfo is rebuilt from a fixed field list, so a field left
+            // out here never reaches any view.
+            track: data.track || '',
             artwork: data.artwork || '',
             back_artwork: data.back_artwork || '',
             canvas_url: keepCanvas ? (this.mediaInfo.canvas_url || '') : (data.canvas_url || ''),

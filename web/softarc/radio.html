@@ -38,6 +38,31 @@
             ? AppConfig.radioServiceUrl
             : 'http://localhost:8779';
 
+        // The category and heading labels arrive from the Radio service
+        // already translated (see services/sources/radio/radio_i18n.py).
+        // Only the strings this page builds itself live here.
+        const _RADIO_STRINGS = {
+            en: { stations: '{n} stations', station: '{n} station' },
+            da: { stations: '{n} stationer', station: '{n} station' },
+        };
+
+        /** config.json's "language" wins unless it's 'auto'; then the
+         *  browser locale, exactly as the weather and calendar views do. */
+        function _radioLang() {
+            const override = window.AppConfig?.language;
+            return ((override && override !== 'auto') ? override : navigator.language || 'en')
+                .toLowerCase().split('-')[0];
+        }
+
+        function _radioT(key, vars) {
+            const table = _RADIO_STRINGS[_radioLang()] || _RADIO_STRINGS.en;
+            let text = table[key] ?? _RADIO_STRINGS.en[key];
+            for (const [name, value] of Object.entries(vars || {})) {
+                text = text.replace('{' + name + '}', () => value);
+            }
+            return text;
+        }
+
         async function fetchBrowse(path) {
             const resp = await fetch(`${RADIO_URL}/browse?path=${encodeURIComponent(path)}`);
             if (!resp.ok) throw new Error(`Browse failed: ${resp.status}`);
@@ -68,7 +93,10 @@
                     mapped.icon = item.icon || 'folder';
                     mapped.color = item.color || '#F9CA24';
                 }
-                if (item.count) mapped.subtitle = `${item.count} stations`;
+                if (item.count) {
+                    mapped.subtitle = _radioT(item.count === 1 ? 'station' : 'stations',
+                                              { n: item.count });
+                }
             } else if (item.type === 'station') {
                 if (item.favicon) {
                     mapped.image = `${RADIO_URL}/favicon?url=${encodeURIComponent(item.favicon)}`;
@@ -104,6 +132,9 @@
             const arcList = new ArcList({
                 rootLoader: async () => {
                     const data = await fetchBrowse('');
+                    // config.json has landed by now, so this is the first
+                    // point the real language is known.
+                    document.documentElement.lang = _radioLang();
                     return data.items.map(mapRadioItem);
                 },
                 childrenLoader: async (item) => {

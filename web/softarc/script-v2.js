@@ -55,6 +55,9 @@ class ArcList {
 
         // ===== STATE =====
         this.navStack = [];
+        // Saved path waiting to be replayed by _restoreDeepState() — set by
+        // restoreState() for lists whose levels come from a loader.
+        this._pendingDeepRestore = null;
         this.depth = 0;
         this.items = [];
         this.rootData = [];
@@ -137,6 +140,9 @@ class ArcList {
         this.updateCounter();
         this.totalItemsDisplay.textContent = this.items.length;
         this.render();
+        // Needs the network, so it follows the first paint rather than
+        // holding it: the root appears, then settles into the saved level.
+        await this._restoreDeepState();
     }
 
     // ─── DATA LOADING ────────────────────────────────────────────────
@@ -233,10 +239,19 @@ class ArcList {
             const state = JSON.parse(raw);
             if (state.version !== 2) return;
 
-            // With childrenLoader, can't re-fetch past levels synchronously — only restore root scroll
+            // Past levels come from a service here, so they cannot be walked
+            // synchronously — but they can be re-fetched. Hand the saved path
+            // to _restoreDeepState(), which replays it with awaits once the
+            // root is on screen. Dropping it was why picking a station and
+            // coming back to the menu landed at the root instead of the level
+            // you left.
             if (this.config.childrenLoader) {
-                if (state.depth !== 0) return;
-                this.currentIndex = Math.max(0, Math.min(this.items.length - 1, state.currentIndex));
+                const path = (state.stack && state.stack.length) ? state : null;
+                this._pendingDeepRestore = path;
+                // Point at the branch we are about to descend, so the first
+                // paint is already on the way there rather than jumping.
+                const idx = path ? path.stack[0].selectedIndex : state.currentIndex;
+                this.currentIndex = Math.max(0, Math.min(this.items.length - 1, idx));
                 this.targetIndex = this.currentIndex;
                 return;
             }
@@ -296,9 +311,71 @@ class ArcList {
         }
     }
 
+    /**
+     * Re-enter the level the list was left in, for lists whose children come
+     * from a loader. Each level is fetched again in turn — the ids are the
+     * browse paths, so they survive a restart of the page or the service.
+     *
+     * Runs after the first paint, and stops at the first level that no longer
+     * resolves (data moved on) or if anything else has navigated meanwhile,
+     * leaving the user wherever they already are rather than yanking them.
+     */
+    async _restoreDeepState() {
+        const state = this._pendingDeepRestore;
+        this._pendingDeepRestore = null;
+        if (!state || !this.config.childrenLoader) return;
+
+        try {
+            for (const frame of state.stack) {
+                if (this.depth !== this.navStack.length) return;   // someone else is navigating
+                let idx = this.items.findIndex(item => item.id === frame.selectedItemId);
+                if (idx < 0) idx = Math.min(frame.selectedIndex, this.items.length - 1);
+                if (idx < 0) break;
+
+                const selectedItem = this.items[idx];
+                const children = await this.config.childrenLoader(selectedItem, this.depth);
+                if (!children || children.length === 0) break;
+
+                this.navStack.push({
+                    items: this.items,
+                    rawItems: this._getCurrentRawItems(),
+                    loadedChildren: children,
+                    selectedIndex: idx,
+                    selectedItem: selectedItem,
+                    breadcrumbElement: null,
+                });
+                this.depth++;
+                this.items = this.mapItems(children, this.depth);
+            }
+
+            if (this.depth === 0) return;
+
+            this.currentIndex = Math.max(0, Math.min(this.items.length - 1, state.currentIndex));
+            this.targetIndex = this.currentIndex;
+            this._createBreadcrumbsFromStack();
+
+            const bg = document.getElementById('hierarchy-background');
+            if (bg) {
+                bg.classList.add('active');
+                bg.style.opacity = Math.min(this.depth * 0.3, 0.8);
+            }
+
+            this.totalItemsDisplay.textContent = this.items.length;
+            this.render();
+            this.updateCounter();
+            this.saveState();
+            console.log('Restored deep state at depth', this.depth);
+        } catch (e) {
+            console.error('Error restoring deep state:', e);
+        }
+    }
+
     // ─── NAVIGATION: DRILL DOWN / GO BACK ────────────────────────────
 
     async drillDown() {
+        // Bound to GO here. The v1 arc (script.js) opens a folder with LEFT
+        // and plays on GO — see docs/arc-lists.md for why they differ and
+        // what unifying them would cost.
         this.snapToNearest();
 
         const idx = Math.round(this.currentIndex);
