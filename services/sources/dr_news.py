@@ -53,6 +53,11 @@ REFRESH_INTERVAL = 15 * 60  # 15 minutes
 ARTICLE_CONCURRENCY = 4     # parallel article page fetches — gentle on DR and the Pi
 HTTP_TIMEOUT = aiohttp.ClientTimeout(total=20)
 THUMB_SIZE = "(480,270)"    # feed images are 1200x675; the arc never shows them that big
+# Article text is read out of dr.dk's own pages, so a change there (as in
+# October 2026) silently leaves every article showing just its summary.
+# Past this share of articles without text, say so in the log instead.
+MISSING_TEXT_RATIO = 0.5
+MISSING_TEXT_MIN = 5        # below this, a couple of odd pages prove nothing
 
 # Feed slug → (section name, phosphor icon, colour)
 FEEDS = {
@@ -102,6 +107,11 @@ def resolve_feeds(configured):
 
 def thumbnail_url(url):
     return _IMAGE_SIZE_RE.sub(lambda m: f"{m.group(1)}={THUMB_SIZE}", url)
+
+
+def count_without_text(bodies):
+    """Articles whose page gave us nothing to read."""
+    return sum(1 for body in bodies.values() if not body)
 
 
 def parse_feed(xml_text):
@@ -353,6 +363,7 @@ class DrNewsService(SourceBase):
         self._feeds = []
         self._sections = []
         self._bodies = {}        # article link → rendered body HTML
+        self._without_text = 0
         self._last_fetch = 0
 
     async def on_start(self):
@@ -423,6 +434,15 @@ class DrNewsService(SourceBase):
                  sum(len(s["articles"]) for s in self._sections),
                  len(self._sections), len(missing))
 
+        self._without_text = count_without_text(self._bodies)
+        total = len(self._bodies)
+        if total >= MISSING_TEXT_MIN and self._without_text > total * MISSING_TEXT_RATIO:
+            log.error(
+                "%d of %d articles have no body text — dr.dk has probably "
+                "changed its article pages again, so the screen will only "
+                "show summaries until sources/dr_news.py is updated",
+                self._without_text, total)
+
     def add_routes(self, app):
         app.router.add_get("/articles", self._handle_articles)
 
@@ -436,6 +456,7 @@ class DrNewsService(SourceBase):
             "feeds": self._feeds,
             "article_count": sum(len(s["articles"]) for s in self._sections),
             "section_count": len(self._sections),
+            "articles_without_text": self._without_text,
             "last_fetch": self._last_fetch,
         }
 

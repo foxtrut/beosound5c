@@ -11,6 +11,7 @@ import json
 from sources.dr_news import (
     DEFAULT_FEEDS,
     build_sections,
+    count_without_text,
     extract_article,
     html_to_paragraphs,
     parse_feed,
@@ -238,6 +239,13 @@ def test_render_drops_media_and_empty_paragraphs():
         _para(_text("  ")),
     ])
     assert html == ""
+
+
+def test_count_without_text_counts_only_empty_bodies():
+    """What the log watches: dr.dk changing its pages empties every body."""
+    assert count_without_text({}) == 0
+    assert count_without_text({"a": "<p>Tekst</p>", "b": "<p>Mere</p>"}) == 0
+    assert count_without_text({"a": "<p>Tekst</p>", "b": "", "c": ""}) == 2
 
 
 # ── Sections ─────────────────────────────────────────────────────────────────
