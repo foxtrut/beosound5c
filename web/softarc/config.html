@@ -415,6 +415,7 @@ const VOLUME_TYPES = [
     ['hdmi',      'HDMI',           'local none'],
     ['spdif',     'S/PDIF',         'local none'],
     ['rca',       'RCA',            'local none'],
+    ['bluetooth', 'Bluetooth speaker', 'local none'],
     ['c4amp',     'C4 Amplifier',   'local none'],
     ['local',     'Software / none','local none'],
 ];
@@ -553,6 +554,18 @@ function renderVolume(cfg) {
         <div id="cfg-volume-host-cond" class="cfg-cond${showHost?' show':''}">
             <label for="cfg-volume-host">Host / IP</label>
             <input id="cfg-volume-host" type="text" value="${esc(v.host)}" placeholder="hostname.local or 192.168.x.x">
+        </div>
+        <div id="cfg-volume-bt-cond" class="cfg-cond${v.type==='bluetooth'?' show':''}">
+            <label for="cfg-volume-bt-mac">Bluetooth speaker</label>
+            <div class="input-row">
+                <input id="cfg-volume-bt-mac" type="text" value="${esc(v.bt_mac)}" placeholder="Scan, then pick your speaker">
+                <button class="btn-subtle" onclick="scanBtSpeakers(event)">Scan</button>
+            </div>
+            <div id="cfg-volume-bt-results" class="cfg-discover-list"></div>
+            <div style="font-size:12px;color:#555;margin-top:6px;line-height:1.5">
+                Put the speaker in pairing mode, then scan. Picking it pairs and
+                connects it — save to make it the output.
+            </div>
         </div>
         <label for="cfg-volume-output">Output name</label>
         <input id="cfg-volume-output" type="text" value="${esc(v.output_name)}" placeholder="e.g. BeoLab 5">
@@ -1544,6 +1557,7 @@ function setupListeners() {
         const showTone = !TONE_EXCLUDED_TYPES.includes(t);
         const showBalance = !BALANCE_EXCLUDED_TYPES.includes(t);
         document.getElementById('cfg-volume-host-cond')?.classList.toggle('show', VOLUME_HOST_TYPES.includes(t));
+        document.getElementById('cfg-volume-bt-cond')?.classList.toggle('show', t === 'bluetooth');
         document.getElementById('cfg-tone-cond')?.classList.toggle('show', showTone || showBalance);
         document.querySelectorAll('.cfg-tone-full').forEach(el =>
             el.style.display = showTone ? '' : 'none');
@@ -1692,6 +1706,7 @@ function updateVolumeOptions() {
     }
     const newVal = volSelect.value;
     document.getElementById('cfg-volume-host-cond')?.classList.toggle('show', VOLUME_HOST_TYPES.includes(newVal));
+    document.getElementById('cfg-volume-bt-cond')?.classList.toggle('show', newVal === 'bluetooth');
 }
 
 function updateIrDropdowns() {
@@ -1754,6 +1769,57 @@ function pickPlayer(ip, name) {
     const out = document.getElementById('cfg-volume-output');
     if (out && !out.value) out.value = name;
     document.getElementById('cfg-player-results').classList.remove('show');
+}
+
+async function scanBtSpeakers(event) {
+    const btn = event.currentTarget;
+    const resultEl = document.getElementById('cfg-volume-bt-results');
+    btn.textContent = 'Scanning...'; btn.disabled = true;
+    resultEl.classList.remove('show');
+    try {
+        // The device runs Bluetooth discovery for 12s (one full classic
+        // inquiry) and then queries each device found before it answers.
+        const resp = await fetch(API + '/bt/speakers?scan=12', { signal: AbortSignal.timeout(60000) });
+        const devices = await resp.json();
+        if (!Array.isArray(devices) || !devices.length) {
+            resultEl.innerHTML = '<span class="cfg-discover-empty">No Bluetooth speakers found — put the speaker in pairing mode and scan again</span>';
+        } else {
+            resultEl.innerHTML = devices.map(d =>
+                `<div class="cfg-discover-item" data-mac="${esc(d.mac)}" data-name="${esc(d.name)}" onclick="pickBtSpeaker(this)">
+                    <span class="cfg-discover-name">${esc(d.name)}</span>
+                    <span class="cfg-discover-ip">${d.connected ? 'connected' : d.paired ? 'paired' : esc(d.mac)}</span>
+                </div>`
+            ).join('');
+        }
+    } catch(e) {
+        resultEl.innerHTML = '<span class="cfg-discover-empty">Scan failed</span>';
+    }
+    resultEl.classList.add('show');
+    btn.textContent = 'Scan'; btn.disabled = false;
+}
+
+async function pickBtSpeaker(el) {
+    const { mac, name } = el.dataset;
+    const status = el.querySelector('.cfg-discover-ip');
+    status.textContent = 'Pairing...';
+    try {
+        const resp = await fetch(API + '/bt/speakers/pair', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mac }),
+            signal: AbortSignal.timeout(100000),
+        });
+        const data = await resp.json();
+        if (data.status !== 'ok') { status.textContent = data.message || 'Pairing failed'; return; }
+    } catch(e) {
+        status.textContent = 'Pairing failed';
+        return;
+    }
+    document.getElementById('cfg-volume-bt-mac').value = mac;
+    const out = document.getElementById('cfg-volume-output');
+    if (out && (!out.value || out.value === 'Not configured')) out.value = name;
+    status.textContent = 'Paired ✓';
+    setTimeout(() => document.getElementById('cfg-volume-bt-results').classList.remove('show'), 1500);
 }
 
 async function discoverHA(event) {
@@ -1835,6 +1901,8 @@ function buildConfig() {
     cfg.volume = cfg.volume || {}; cfg.volume.type = vt;
     if (VOLUME_HOST_TYPES.includes(vt)) { cfg.volume.host = document.getElementById('cfg-volume-host')?.value || ''; }
     else { delete cfg.volume.host; }
+    if (vt === 'bluetooth') { cfg.volume.bt_mac = (document.getElementById('cfg-volume-bt-mac')?.value || '').trim().toUpperCase(); }
+    else { delete cfg.volume.bt_mac; }
     cfg.volume.output_name = document.getElementById('cfg-volume-output')?.value || '';
     cfg.volume.max = parseInt(document.getElementById('cfg-volume-max')?.value) || 80;
     cfg.volume.step = parseInt(document.getElementById('cfg-volume-step')?.value) || 3;

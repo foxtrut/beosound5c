@@ -18,6 +18,8 @@ Each BeoSound 5c is configured with a **player** (how audio is played) and a **v
 
 - **B&O PowerLink speakers?** Use PowerLink for volume. Local sources (CD, USB) play on the Pi and output to PowerLink speakers via the MasterLink bus. Streaming sources need a Sonos or BlueSound player. Set `volume.type` to `"powerlink"`.
 
+- **Bluetooth speakers?** Use the local player and the Bluetooth speaker output. The Pi plays everything itself and streams it to the speaker over Bluetooth (A2DP). Pair the speaker from the config page. Set `player.type` to `"local"` and `volume.type` to `"bluetooth"`.
+
 - **Other speakers or amplifier?** Connect via HDMI, optical/Toslink, or RCA (with the appropriate HAT). Local sources play directly. Streaming sources need a Sonos or BlueSound player. Pick whichever output matches your cable.
 
 ## Player Types
@@ -200,6 +202,31 @@ Requires a DAC HAT with RCA analog output (e.g. HiFiBerry DAC+, IQaudIO DAC). Vo
 "volume": { "type": "rca", "max": 70 }
 ```
 
+### Bluetooth speaker
+
+Streams to a Bluetooth (A2DP) speaker — active speakers, a soundbar, headphones. Needs `player.type: "local"`: the Pi plays every source itself (mpv, go-librespot, AirPlay) and the output of the tone chain (`beo_tone_sink`) goes to the speaker, so bass/treble/balance still apply.
+
+**Setup:**
+1. In the config page (`http://<device-ip>/config`), set Player to **Local** and Output type to **Bluetooth speaker**.
+2. Put the speaker in pairing mode and press **Scan**, then pick it from the list. It is paired, trusted and connected on the spot.
+3. **Save & Restart Services.**
+
+**Behaviour:**
+- The BS5c keeps the speaker connected while awake. If the speaker is switched off or out of range, it retries every 30 seconds and moves the audio back when the speaker returns.
+- Standby disconnects, so the speaker can sleep and other devices (a phone) can connect to it.
+- The volume wheel sets the speaker's volume through PipeWire. Speakers with AVRCP absolute volume adjust their own amplifier; others are attenuated digitally.
+
+**Notes:**
+- A stereo pair of active speakers normally shows up as one Bluetooth device (the primary speaker feeds the secondary by cable or its own link) — pair that one.
+- The Pi's Bluetooth radio also carries the BeoRemote One and shares its antenna with 2.4 GHz Wi-Fi. If audio drops out, put the Pi on Ethernet or 5 GHz Wi-Fi, or keep the speaker close.
+- On WirePlumber 0.4, `install.sh` disables the Bluetooth audio monitor to save CPU; with `volume.type: "bluetooth"` in config.json it leaves it enabled (re-run the system install step after switching). WirePlumber 0.5 is unaffected.
+
+**Config:**
+```json
+"player": { "type": "local" },
+"volume": { "type": "bluetooth", "bt_mac": "00:11:22:33:44:55", "max": 70, "output_name": "Kanto YU4" }
+```
+
 ### BeoLab 5 (via BeoLab 5 Controller)
 
 A custom option for controlling a pair of BeoLab 5 speakers via their sync port. Requires the BeoLab 5 Controller — a dedicated ESP32 board that sends serial commands to both speakers.
@@ -252,6 +279,7 @@ The router sends volume commands through whichever adapter matches the configure
 | `hdmi` | 50ms | No | No | N/A (local ALSA) |
 | `spdif` | 50ms | No | No | N/A (local ALSA) |
 | `rca` | 50ms | No | No | N/A (local ALSA) |
+| `bluetooth` | 100ms | Yes (connect/disconnect) | Yes (tone chain) | `volume.bt_mac` |
 
 Adapters are pluggable — write a custom one to control your amplifier over HTTP, IR, or anything else. See [`services/lib/volume_adapters/`](../services/lib/volume_adapters/) for all adapters and the base class.
 
@@ -261,7 +289,7 @@ The `volume` section in `config.json`:
 
 ```json
 "volume": {
-  "type": "sonos",          // "sonos", "bluesound", "heos", "beolab5", "powerlink", "c4amp", "hdmi", "spdif", or "rca"
+  "type": "sonos",          // "sonos", "bluesound", "heos", "beolab5", "powerlink", "c4amp", "hdmi", "spdif", "rca", or "bluetooth"
   "host": "192.168.1.100",  // Target IP/hostname (sonos, bluesound, heos, beolab5, c4amp)
   "max": 70,                // Maximum volume percentage
   "step": 3,                // Volume step per wheel click

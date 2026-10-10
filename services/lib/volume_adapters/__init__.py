@@ -16,6 +16,7 @@ Supported types:
   - ``hdmi``                   – HDMI1 audio output (ALSA software volume)
   - ``spdif``                  – S/PDIF HAT output (ALSA software volume)
   - ``rca``                    – RCA analog output (no volume control)
+  - ``bluetooth``              – Bluetooth A2DP speaker via BlueZ + PipeWire
 """
 
 import logging
@@ -27,6 +28,7 @@ from ..config import cfg
 from .base import VolumeAdapter
 from .beolab5 import BeoLab5Volume
 from .bluesound import BluesoundVolume
+from .bluetooth import BluetoothVolume
 from .c4amp import C4AmpVolume
 from .hdmi import HdmiVolume
 from .heos import HeosVolume
@@ -46,6 +48,7 @@ __all__ = [
     "LocalVolume",
     "BeoLab5Volume",
     "BluesoundVolume",
+    "BluetoothVolume",
     "C4AmpVolume",
     "HdmiVolume",
     "HeosVolume",
@@ -85,7 +88,8 @@ def create_volume_adapter(session: aiohttp.ClientSession) -> VolumeAdapter:
 
     Reads from config.json "volume" section:
       type        – "beolab5", "sonos", "bluesound", "heos",
-                    "powerlink", "c4amp", "hdmi", "spdif", or "rca".
+                    "powerlink", "c4amp", "hdmi", "spdif", "rca", or
+                    "bluetooth".
                     If omitted, defaults to player.type for
                     sonos/bluesound/heos, "powerlink" for local/powerlink,
                     otherwise "beolab5".
@@ -94,6 +98,7 @@ def create_volume_adapter(session: aiohttp.ClientSession) -> VolumeAdapter:
       zone        – C4 amp output zone, e.g. "01" (c4amp only, default "01")
       input       – C4 amp source input for power_on (c4amp only, default "01")
       mixer_port  – masterlink.py mixer HTTP port (default 8768, powerlink only)
+      bt_mac      – paired speaker MAC (bluetooth only)
     """
     vol_type = infer_volume_type()
     # Default host: use the active target IP for sonos/bluesound/heos so volume
@@ -144,6 +149,11 @@ def create_volume_adapter(session: aiohttp.ClientSession) -> VolumeAdapter:
     elif vol_type == "spdif":
         logger.info("Volume adapter: S/PDIF ALSA software volume (max %d%%)", vol_max)
         return SpdifVolume(vol_max)
+    elif vol_type == "bluetooth":
+        mac = cfg("volume", "bt_mac", default="")
+        logger.info("Volume adapter: Bluetooth speaker %s (max %d%%)",
+                     mac or "(none paired)", vol_max)
+        return BluetoothVolume(mac, vol_max)
     elif vol_type == "rca":
         logger.info("Volume adapter: RCA analog output (no volume control, max %d%%)", vol_max)
         return RcaVolume(vol_max)
