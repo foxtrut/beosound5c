@@ -1,0 +1,34 @@
+[Unit]
+Description=BeoSound5c To-do Source (to-do list, phone page on port 8793)
+After=network-online.target beo-input.service beo-router.service
+Wants=network-online.target
+OnFailure=beo-notify-failure@%n.service
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+WorkingDirectory=__HOME__/beosound5c/services
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 __HOME__/beosound5c/services/sources/todo/service.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+# This service answers phones on the network, so it gets less than the others:
+# no secrets file, read-only system, writes only under the service user's home.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=__HOME__
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

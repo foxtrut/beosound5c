@@ -67,6 +67,7 @@
             { id: 'radio', title: 'RADIO', preset: 'radio', dynamic: true },
             { id: 'airplay', title: 'AIRPLAY', preset: 'airplay', dynamic: true },
             { id: 'dr_news', title: 'DR NYHEDER', preset: 'dr_news', dynamic: true },
+            { id: 'todo', title: 'TO-DO', preset: 'todo', dynamic: true },
             { id: 'scenes', title: 'SCENES' },
             { id: 'security', title: 'SECURITY', type: 'webpage',
               url: 'softarc/security.html' },
@@ -165,6 +166,7 @@
         '8779': 'radio',
         '8782': 'airplay',
         '8792': 'dr_news',
+        '8793': 'todo',
     };
 
     // Endpoint → demo file, per source. Shapes match what each service
@@ -187,6 +189,7 @@
         // reached from the emulator any other way.
         airplay:     { '/status': 'airplay_status.json' },
         dr_news:     { '/articles': 'dr_news_articles.json' },
+        todo:        { '/api/items': 'todo_items.json' },
     };
 
     // radio_browse.json is keyed by browse path; the others are served as-is.
