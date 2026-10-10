@@ -15,6 +15,7 @@
     "NEWS": "news",
     "WEATHER": "weather",
     "CALENDAR": "calendar",
+    "DR NYHEDER": "dr_news",
     "RADIO": "radio",
     "SCENES": "scenes",
     "SYSTEM": "system"
@@ -47,6 +48,7 @@
   "news": { "guardian_api_key": "test" },
   "weather": { "latitude": "", "longitude": "", "location_name": "" },
   "calendar": { "url": "", "days_ahead": 14 },
+  "dr_news": { "feeds": ["senestenyt", "indland", "udland", "politik", "penge", "kultur", "viden", "sporten"] },
   "masterlink": {
     "role": "master",
     "ir": { "audio": true, "video": true },
